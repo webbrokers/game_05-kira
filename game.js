@@ -2,6 +2,8 @@
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
     const stage = document.getElementById("gameStage");
+    const coinCountElement = document.getElementById("coinCountValue");
+    const lifeDisplayElement = document.getElementById("lifeDisplay");
 
     const background = {
         image: null,
@@ -18,6 +20,7 @@
     let viewportWidth = canvas.width;
     let viewportHeight = canvas.height;
     let deviceScale = window.devicePixelRatio || 1;
+    let heroSpriteMetrics = null;
 
     const world = {
         width: canvas.width * 3,
@@ -38,6 +41,13 @@
     const coinSize = 22;
     const coinPadding = 6;
     const worldSeed = 1337;
+    const MAX_LIVES = 3;
+    const gameState = {
+        coinsCollected: 0,
+        lives: MAX_LIVES,
+        fallThreshold: 0,
+    };
+    let worldInitialized = false;
 
     const hero = {
         x: 120,
@@ -55,6 +65,16 @@
         facing: 1,
         isGrounded: true,
         isCrouching: false,
+        jumpCount: 0,
+        maxJumps: 2,
+        controlLock: 0,
+        invulnerabilityTimer: 0,
+        blinkTimer: 0,
+        groundY: null,
+        lastSafePlatform: null,
+        spriteScale: 1,
+        spriteOffsetX: 0,
+        spriteOffsetY: 0,
         animFrame: 0,
         animTimer: 0,
         animFrameDuration: 0.055,
@@ -84,6 +104,12 @@
             .then((assets) => {
                 background.image = assets.pop();
                 heroFrames.push(...assets);
+                heroSpriteMetrics = computeSpriteMetrics(heroFrames);
+                applyHeroDimensions(hero.height);
+                initializeWorldContent(true);
+                updateCoinDisplay();
+                updateLifeDisplay();
+                updateFallThreshold();
                 requestAnimationFrame(loop);
             })
             .catch((err) => {
@@ -105,6 +131,109 @@
         return Math.min(Math.max(value, min), max);
     }
 
+    function updateCoinDisplay() {
+        if (!coinCountElement) return;
+        coinCountElement.textContent = String(gameState.coinsCollected);
+    }
+
+    function updateLifeDisplay() {
+        if (!lifeDisplayElement) return;
+
+        const hearts = [];
+        for (let index = 0; index < MAX_LIVES; index += 1) {
+            const filled = index < gameState.lives;
+            const className = filled ? "life-heart" : "life-heart life-heart--empty";
+            hearts.push(`<span class="${className}" aria-hidden="true">&#9829;</span>`);
+        }
+
+        lifeDisplayElement.innerHTML = hearts.join("");
+        lifeDisplayElement.setAttribute("aria-label", `Жизни: ${gameState.lives}`);
+    }
+
+    function computeSpriteMetrics(frames) {
+        const tempCanvas = document.createElement("canvas");
+        const tempCtx = tempCanvas.getContext("2d", { willReadFrequently: true });
+
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+        let spriteWidth = 0;
+        let spriteHeight = 0;
+
+        frames.forEach((frame) => {
+            const width = frame.naturalWidth || frame.width;
+            const height = frame.naturalHeight || frame.height;
+            if (!width || !height) {
+                return;
+            }
+
+            spriteWidth = Math.max(spriteWidth, width);
+            spriteHeight = Math.max(spriteHeight, height);
+
+            tempCanvas.width = width;
+            tempCanvas.height = height;
+            tempCtx.clearRect(0, 0, width, height);
+            tempCtx.drawImage(frame, 0, 0, width, height);
+            const imageData = tempCtx.getImageData(0, 0, width, height).data;
+
+            for (let y = 0; y < height; y += 1) {
+                for (let x = 0; x < width; x += 1) {
+                    const alpha = imageData[(y * width + x) * 4 + 3];
+                    if (alpha > 15) {
+                        if (x < minX) minX = x;
+                        if (y < minY) minY = y;
+                        if (x > maxX) maxX = x;
+                        if (y > maxY) maxY = y;
+                    }
+                }
+            }
+        });
+
+        if (!Number.isFinite(minX) || !Number.isFinite(minY) || maxX < minX || maxY < minY) {
+            return null;
+        }
+
+        return {
+            spriteWidth,
+            spriteHeight,
+            collisionLeft: minX,
+            collisionTop: minY,
+            collisionWidth: maxX - minX + 1,
+            collisionHeight: maxY - minY + 1,
+        };
+    }
+
+    function applyHeroDimensions(currentHeight) {
+        if (!heroSpriteMetrics) {
+            hero.spriteScale = 1;
+            return;
+        }
+
+        const scale = currentHeight / heroSpriteMetrics.collisionHeight;
+        hero.spriteScale = scale;
+        hero.width = heroSpriteMetrics.collisionWidth * scale;
+        hero.spriteOffsetX = heroSpriteMetrics.collisionLeft * scale;
+        hero.spriteOffsetY = heroSpriteMetrics.collisionTop * scale;
+    }
+
+    function setHeroHeight(targetHeight) {
+        if (Math.abs(hero.height - targetHeight) < 0.01) {
+            return;
+        }
+
+        const bottom = hero.y + hero.height;
+        const center = hero.x + hero.width / 2;
+        hero.height = targetHeight;
+        applyHeroDimensions(hero.height);
+        hero.y = bottom - hero.height;
+        hero.x = center - hero.width / 2;
+    }
+
+    function updateFallThreshold() {
+        gameState.fallThreshold = world.height + viewportHeight * 0.5;
+    }
+
     function addCoinForPlatform(platform) {
         const coin = {
             x: platform.x + platform.width / 2 - coinSize / 2,
@@ -123,16 +252,29 @@
         return platform;
     }
 
-    function initializeWorldContent() {
+    function initializeWorldContent(force = false) {
+        if (worldInitialized && !force) {
+            return;
+        }
+
         const random = createRandomGenerator(worldSeed);
         platforms.length = 0;
         coins.length = 0;
+        gameState.coinsCollected = 0;
+        gameState.lives = MAX_LIVES;
+        updateCoinDisplay();
+        updateLifeDisplay();
 
         const groundY = world.height - floorOffset;
         const primaryPlatformY = groundY - 120;
         const secondPlatformY = clamp(primaryPlatformY - 100, groundY - 220, groundY - 100);
 
-        let lastPlatform = addPlatform(80, primaryPlatformY, 320, 24);
+        if (!heroSpriteMetrics) {
+            applyHeroDimensions(hero.height);
+        }
+
+        let firstPlatform = addPlatform(80, primaryPlatformY, 320, 24);
+        let lastPlatform = firstPlatform;
         lastPlatform = addPlatform(520, secondPlatformY, 280, 24);
 
         const maxAdditionalPlatforms = 6;
@@ -152,9 +294,70 @@
             lastPlatform = addPlatform(nextX, targetY, width, 24);
         }
 
-        hero.x = clamp(hero.x, 0, Math.max(0, world.width - hero.width));
-        const heroGroundY = groundY - hero.height;
-        hero.y = Math.min(hero.y, heroGroundY);
+        if (!firstPlatform && platforms.length > 0) {
+            firstPlatform = platforms[0];
+        }
+
+        hero.height = hero.standHeight;
+        applyHeroDimensions(hero.height);
+
+        if (firstPlatform) {
+            hero.x = firstPlatform.x + firstPlatform.width / 2 - hero.width / 2;
+            hero.y = firstPlatform.y - hero.height;
+            hero.groundY = firstPlatform.y;
+            hero.isGrounded = true;
+            hero.jumpCount = 0;
+            hero.lastSafePlatform = firstPlatform;
+        }
+
+        hero.controlLock = 0;
+        hero.invulnerabilityTimer = 0;
+        hero.blinkTimer = 0;
+
+        worldInitialized = true;
+        updateFallThreshold();
+    }
+
+    function respawnHero() {
+        const platform = hero.lastSafePlatform || platforms[0];
+        if (platform) {
+            hero.x = platform.x + platform.width / 2 - hero.width / 2;
+            hero.y = platform.y - hero.height;
+            hero.groundY = platform.y;
+        } else {
+            hero.x = 80;
+            hero.y = world.height * 0.25;
+            hero.groundY = null;
+        }
+
+        hero.vx = 0;
+        hero.vy = 0;
+        hero.isGrounded = true;
+        hero.jumpCount = 0;
+        hero.controlLock = 0.6;
+        hero.invulnerabilityTimer = 2;
+        hero.blinkTimer = 0;
+        hero.isCrouching = false;
+    }
+
+    function handleHeroLifeLoss() {
+        if (hero.invulnerabilityTimer > 0) {
+            return;
+        }
+
+        gameState.lives = Math.max(0, gameState.lives - 1);
+        updateLifeDisplay();
+        respawnHero();
+    }
+
+    function handleHeroFall() {
+        if (hero.invulnerabilityTimer > 0) {
+            return;
+        }
+        const heroBottom = hero.y + hero.height;
+        if (heroBottom > gameState.fallThreshold) {
+            handleHeroLifeLoss();
+        }
     }
 
     function loop(timestamp) {
@@ -173,15 +376,30 @@
     function update(delta) {
         handleInput();
 
+        if (hero.controlLock > 0) {
+            hero.controlLock = Math.max(0, hero.controlLock - delta);
+        }
+
+        if (hero.invulnerabilityTimer > 0) {
+            hero.invulnerabilityTimer = Math.max(0, hero.invulnerabilityTimer - delta);
+            hero.blinkTimer += delta;
+        } else {
+            hero.blinkTimer = 0;
+        }
+
+        const canControl = hero.controlLock <= 0;
+
         // Horizontal movement
         const targetSpeed = hero.isCrouching ? hero.crouchSpeed : hero.speed;
         hero.vx = 0;
-        if (inputState.left) {
-            hero.vx = -targetSpeed;
-            hero.facing = -1;
-        } else if (inputState.right) {
-            hero.vx = targetSpeed;
-            hero.facing = 1;
+        if (canControl) {
+            if (inputState.left) {
+                hero.vx = -targetSpeed;
+                hero.facing = -1;
+            } else if (inputState.right) {
+                hero.vx = targetSpeed;
+                hero.facing = 1;
+            }
         }
 
         // Apply gravity
@@ -190,6 +408,7 @@
         let nextX = hero.x + hero.vx * delta;
         let nextY = hero.y + hero.vy * delta;
         hero.isGrounded = false;
+        hero.groundY = null;
 
         // Platform collisions
         platforms.forEach((platform) => {
@@ -197,44 +416,37 @@
                 nextX < platform.x + platform.width &&
                 nextX + hero.width > platform.x;
 
+            if (!overlapsHorizontally) {
+                return;
+            }
+
             const heroPrevBottom = hero.y + hero.height;
             const heroNextBottom = nextY + hero.height;
 
-            if (overlapsHorizontally) {
-                // Landing on top
-                if (
-                    heroPrevBottom <= platform.y &&
-                    heroNextBottom >= platform.y
-                ) {
-                    nextY = platform.y - hero.height;
-                    hero.vy = 0;
-                    hero.isGrounded = true;
-                }
+            // Landing on top of the platform
+            if (heroPrevBottom <= platform.y && heroNextBottom >= platform.y) {
+                nextY = platform.y - hero.height;
+                hero.vy = 0;
+                hero.isGrounded = true;
+                hero.jumpCount = 0;
+                hero.groundY = platform.y;
+                hero.lastSafePlatform = platform;
+            }
 
-                // Prevent going up through the platform
-                if (
-                    hero.y >= platform.y + platform.height &&
-                    nextY <= platform.y + platform.height
-                ) {
-                    nextY = platform.y + platform.height;
-                    hero.vy = Math.max(hero.vy, 0);
-                }
+            // Prevent passing through the platform from below
+            if (
+                hero.y >= platform.y + platform.height &&
+                nextY <= platform.y + platform.height
+            ) {
+                nextY = platform.y + platform.height;
+                hero.vy = Math.max(hero.vy, 0);
             }
         });
-
-        const floorY = world.height - floorOffset;
-
-        // Floor collision
-        if (nextY + hero.height >= floorY) {
-            nextY = floorY - hero.height;
-            hero.vy = 0;
-            hero.isGrounded = true;
-        }
 
         hero.x = nextX;
         hero.y = nextY;
 
-        // Keep inside stage
+        // Keep inside horizontal bounds of the world
         if (hero.x < 0) hero.x = 0;
         const maxHeroX = Math.max(0, world.width - hero.width);
         if (hero.x > maxHeroX) {
@@ -243,14 +455,13 @@
 
         // Manage crouch height transitions
         const targetHeight = hero.isCrouching ? hero.crouchHeight : hero.standHeight;
-        if (hero.height !== targetHeight) {
-            const bottom = hero.y + hero.height;
-            hero.height = targetHeight;
-            hero.y = bottom - hero.height;
-            if (hero.y + hero.height > floorY) {
-                hero.y = floorY - hero.height;
-            }
+        setHeroHeight(targetHeight);
+
+        if (!hero.isGrounded) {
+            hero.groundY = null;
         }
+
+        handleHeroFall();
 
         updateCoins();
         updateCamera();
@@ -278,6 +489,8 @@
 
             if (isOverlapping) {
                 coin.collected = true;
+                gameState.coinsCollected += 1;
+                updateCoinDisplay();
             }
         });
     }
@@ -320,9 +533,16 @@
     }
 
     function handleInput() {
-        if (inputState.jumpRequested && hero.isGrounded) {
+        if (hero.controlLock > 0) {
+            inputState.jumpRequested = false;
+            hero.isCrouching = false;
+            return;
+        }
+
+        if (inputState.jumpRequested && hero.jumpCount < hero.maxJumps) {
             hero.vy = hero.jumpVelocity;
             hero.isGrounded = false;
+            hero.jumpCount += 1;
         }
 
         hero.isCrouching = inputState.crouch && hero.isGrounded;
@@ -351,7 +571,8 @@
 
         // Background with vertical parallax during jumps
         const backgroundHeight = viewportHeight + background.parallaxAmplitude * 2;
-        const groundY = world.height - floorOffset - hero.height;
+        const groundReference = (hero.groundY ?? hero.lastSafePlatform?.y ?? (world.height - floorOffset));
+        const groundY = groundReference - hero.height;
         const jumpOffset = clamp(groundY - hero.y, -background.parallaxAmplitude, background.parallaxAmplitude);
         const parallaxShift = jumpOffset;
         const backgroundY = -background.parallaxAmplitude + parallaxShift;
@@ -403,14 +624,17 @@
             ctx.stroke();
         });
 
-        // Hero
         const frame = heroFrames[hero.animFrame];
-        if (frame) {
-            const drawHeight = hero.height * 1.15;
-            const drawWidth =
-                drawHeight * (frame.naturalWidth / frame.naturalHeight || 0.8);
-            const drawX = hero.x + hero.width / 2 - drawWidth / 2;
-            const drawY = hero.y + hero.height - drawHeight;
+        const heroVisible = hero.invulnerabilityTimer <= 0 || Math.floor((hero.blinkTimer ?? 0) / 0.1) % 2 === 0;
+
+        if (frame && heroVisible) {
+            const naturalWidth = frame.naturalWidth || frame.width || hero.width;
+            const naturalHeight = frame.naturalHeight || frame.height || hero.height;
+            const scale = hero.spriteScale || (hero.height / naturalHeight);
+            const drawWidth = naturalWidth * scale;
+            const drawHeight = naturalHeight * scale;
+            const drawX = hero.x - hero.spriteOffsetX;
+            const drawY = hero.y - hero.spriteOffsetY;
 
             ctx.save();
             ctx.translate(drawX + drawWidth / 2, drawY + drawHeight / 2);
@@ -423,7 +647,7 @@
                 drawHeight
             );
             ctx.restore();
-        } else {
+        } else if (!frame && heroVisible) {
             // Placeholder rectangle if frames not ready
             ctx.fillStyle = "#ff7373";
             ctx.fillRect(hero.x, hero.y, hero.width, hero.height);
@@ -574,6 +798,12 @@
         hero.crouchSpeed *= normalizedScaleX;
         hero.jumpVelocity *= normalizedScaleY;
         hero.gravity *= normalizedScaleY;
+        hero.spriteOffsetX *= normalizedScaleX;
+        hero.spriteOffsetY *= normalizedScaleY;
+        hero.spriteScale *= normalizedScaleY;
+        if (hero.groundY !== null) {
+            hero.groundY *= normalizedScaleY;
+        }
 
         world.width *= normalizedScaleX;
         world.height *= normalizedScaleY;
@@ -592,6 +822,8 @@
             coin.y *= normalizedScaleY;
             coin.size *= (normalizedScaleX + normalizedScaleY) / 2;
         });
+
+        updateFallThreshold();
     }
 
     function handleResize() {
@@ -620,7 +852,7 @@
 
         world.width = Math.max(world.width, viewportWidth * 3);
         world.height = Math.max(world.height, viewportHeight);
-        initializeWorldContent();
+        updateFallThreshold();
         updateCamera();
     }
 

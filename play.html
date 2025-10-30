@@ -11,9 +11,17 @@
         <canvas class="game-canvas" id="gameCanvas" width="960" height="540"></canvas>
 
         <div class="game-topbar">
-            <button class="topbar-button" data-action="enter-fullscreen">Полный экран</button>
-            <button class="topbar-button" data-action="exit-fullscreen">Выход из полноэкрана</button>
+            <div class="topbar-button-group">
+                <button class="topbar-button" data-action="enter-fullscreen">Полный экран</button>
+                <button class="topbar-button" data-action="exit-fullscreen">Выход из полноэкрана</button>
+            </div>
+            <div class="hud hud--coins" id="coinDisplay" aria-live="polite">
+                <span class="hud-label">Монеты</span>
+                <span class="hud-value" id="coinCountValue">0</span>
+            </div>
         </div>
+
+        <div class="hud hud--lives" id="lifeDisplay" aria-live="polite" aria-label="Жизни"></div>
 
         <div class="control-pad control-pad--vertical">
             <button class="control-button control-button--arrow control-button--up" data-action="jump" aria-label="Прыжок"></button>

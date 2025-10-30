@@ -66,8 +66,15 @@ body.play-page {
     top: 1rem;
     right: 1rem;
     display: flex;
+    flex-direction: column;
+    align-items: flex-end;
     gap: 0.5rem;
     z-index: 20;
+}
+
+.topbar-button-group {
+    display: flex;
+    gap: 0.5rem;
 }
 
 .topbar-button {
@@ -92,6 +99,62 @@ body.play-page {
     height: 100vh;
     background: #2a2a2a;
     overflow: hidden;
+}
+
+.hud {
+    background: rgba(17, 17, 17, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    padding: 0.35rem 0.7rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.95rem;
+    line-height: 1;
+    backdrop-filter: blur(6px);
+}
+
+.hud-label {
+    color: rgba(255, 255, 255, 0.65);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.hud-value {
+    font-weight: 600;
+    font-size: 1.05rem;
+    color: #ffe268;
+}
+
+.hud--coins {
+    min-width: 120px;
+    justify-content: space-between;
+}
+
+.hud--lives {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    z-index: 20;
+    background: rgba(17, 17, 17, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 999px;
+    padding: 0.35rem 0.75rem;
+}
+
+.life-heart {
+    font-size: 1.1rem;
+    color: #ff6b81;
+    text-shadow: 0 0 8px rgba(255, 107, 129, 0.4);
+}
+
+.life-heart--empty {
+    color: rgba(255, 255, 255, 0.25);
+    text-shadow: none;
 }
 
 .game-canvas {

@@ -54,25 +54,20 @@ body {
 
 /* Play page */
 body.play-page {
-    flex-direction: column;
+    display: block;
     background: #1c1c1c;
-    padding: 1rem;
-}
-
-.game-shell {
-    width: min(100%, 1024px);
-    max-height: 100vh;
-    display: grid;
-    grid-template-columns: 80px 1fr 80px;
-    grid-template-rows: auto 1fr;
-    gap: 0.75rem;
+    min-height: 100vh;
+    overflow: hidden;
+    padding: 0;
 }
 
 .game-topbar {
-    grid-column: 1 / -1;
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
     display: flex;
-    justify-content: flex-end;
     gap: 0.5rem;
+    z-index: 20;
 }
 
 .topbar-button {
@@ -91,61 +86,87 @@ body.play-page {
     background: #3f3f3f;
 }
 
-.control-column {
-    display: grid;
-    grid-template-rows: repeat(3, minmax(0, 1fr));
-    gap: 0.5rem;
-}
-
-.control-button {
-    background: #262626;
-    border: 1px solid #484848;
-    border-radius: 12px;
-    color: #f8f8f8;
-    font-size: clamp(0.9rem, 2vw, 1.1rem);
-    font-weight: 600;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: transform 0.1s ease, background 0.2s ease;
-    user-select: none;
-    touch-action: manipulation;
-}
-
-.control-button:active {
-    transform: scale(0.96);
-    background: #3a3a3a;
-}
-
-.control-button--spacer {
-    visibility: hidden;
-}
-
 .game-stage {
     position: relative;
+    width: 100vw;
+    height: 100vh;
     background: #2a2a2a;
-    border-radius: 18px;
     overflow: hidden;
 }
 
 .game-canvas {
     width: 100%;
-    height: auto;
+    height: 100%;
     display: block;
 }
 
-.touch-overlay {
+.control-pad {
     position: absolute;
-    inset: 0;
-    touch-action: none;
+    display: flex;
+    gap: 0.75rem;
+    z-index: 15;
+}
+
+.control-pad--vertical {
+    flex-direction: column;
+    left: 1.5rem;
+    bottom: 1.5rem;
+}
+
+.control-pad--horizontal {
+    right: 1.5rem;
+    bottom: 1.5rem;
+}
+
+.control-button {
+    width: clamp(44px, 5vw, 60px);
+    height: clamp(44px, 5vw, 60px);
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(38, 38, 38, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.1s ease, background 0.2s ease;
+    user-select: none;
+    touch-action: manipulation;
+    padding: 0;
+}
+
+.control-button:active {
+    transform: scale(0.92);
+    background: rgba(58, 58, 58, 0.85);
+}
+
+.control-button--arrow::before {
+    content: "";
+    width: 0;
+    height: 0;
+    border-left: 12px solid transparent;
+    border-right: 12px solid transparent;
+    border-bottom: 18px solid #f8f8f8;
+    transition: opacity 0.2s ease;
+    transform-origin: 50% 50%;
+}
+
+.control-button--up::before {
+    transform: rotate(0);
+}
+
+.control-button--down::before {
+    transform: rotate(180deg);
+}
+
+.control-button--left::before {
+    transform: rotate(-90deg);
+}
+
+.control-button--right::before {
+    transform: rotate(90deg);
 }
 
 @media (max-width: 768px) {
-    .game-shell {
-        grid-template-columns: 64px 1fr 64px;
-    }
-
     .topbar-button {
         font-size: 0.85rem;
         padding: 0.35rem 0.6rem;
@@ -153,32 +174,7 @@ body.play-page {
 }
 
 @media (max-width: 640px) {
-    body.play-page {
-        padding: 0.5rem;
-    }
-
-    .game-shell {
-        grid-template-columns: 1fr;
-        grid-template-rows: auto auto 1fr auto;
-    }
-
-    .control-column--left,
-    .control-column--right {
-        grid-row: 3;
-        grid-column: span 1;
-        grid-template-columns: repeat(2, 1fr);
-        grid-template-rows: auto;
-    }
-
-    .control-column--left {
-        justify-items: stretch;
-    }
-
-    .control-column--right {
-        justify-items: stretch;
-    }
-
-    .control-button--spacer {
-        display: none;
+    .control-pad {
+        gap: 0.5rem;
     }
 }

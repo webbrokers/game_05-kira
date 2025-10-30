@@ -7,26 +7,22 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body class="play-page">
-    <div class="game-shell">
+    <div class="game-stage" id="gameStage">
+        <canvas class="game-canvas" id="gameCanvas" width="960" height="540"></canvas>
+
         <div class="game-topbar">
             <button class="topbar-button" data-action="enter-fullscreen">Полный экран</button>
             <button class="topbar-button" data-action="exit-fullscreen">Выход из полноэкрана</button>
         </div>
 
-        <div class="control-column control-column--left">
-            <button class="control-button" data-action="jump">Вверх</button>
-            <button class="control-button control-button--spacer" tabindex="-1" aria-hidden="true"></button>
-            <button class="control-button" data-action="crouch">Вниз</button>
+        <div class="control-pad control-pad--vertical">
+            <button class="control-button control-button--arrow control-button--up" data-action="jump" aria-label="Прыжок"></button>
+            <button class="control-button control-button--arrow control-button--down" data-action="crouch" aria-label="Присесть"></button>
         </div>
 
-        <div class="game-stage" id="gameStage">
-            <canvas class="game-canvas" id="gameCanvas" width="960" height="540"></canvas>
-        </div>
-
-        <div class="control-column control-column--right">
-            <button class="control-button" data-action="move-left">Влево</button>
-            <button class="control-button control-button--spacer" tabindex="-1" aria-hidden="true"></button>
-            <button class="control-button" data-action="move-right">Вправо</button>
+        <div class="control-pad control-pad--horizontal">
+            <button class="control-button control-button--arrow control-button--left" data-action="move-left" aria-label="Движение влево"></button>
+            <button class="control-button control-button--arrow control-button--right" data-action="move-right" aria-label="Движение вправо"></button>
         </div>
     </div>
     <script src="game.js"></script>

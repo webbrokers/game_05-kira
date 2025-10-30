@@ -36,11 +36,13 @@
         crouch: false,
         jumpRequested: false,
     };
-
-    const floorY = canvas.height - 40;
+    const floorOffset = 40;
+    let viewportWidth = canvas.width;
+    let viewportHeight = canvas.height;
+    let deviceScale = window.devicePixelRatio || 1;
     const platforms = [
-        { x: 80, y: floorY - 120, width: 320, height: 24 },
-        { x: 520, y: floorY - 220, width: 280, height: 24 },
+        { x: 80, y: viewportHeight - floorOffset - 120, width: 320, height: 24 },
+        { x: 520, y: viewportHeight - floorOffset - 220, width: 280, height: 24 },
     ];
 
     let lastTimestamp = 0;
@@ -130,6 +132,8 @@
             }
         });
 
+        const floorY = viewportHeight - floorOffset;
+
         // Floor collision
         if (nextY + hero.height >= floorY) {
             nextY = floorY - hero.height;
@@ -142,8 +146,8 @@
 
         // Keep inside stage
         if (hero.x < 0) hero.x = 0;
-        if (hero.x + hero.width > canvas.width) {
-            hero.x = canvas.width - hero.width;
+        if (hero.x + hero.width > viewportWidth) {
+            hero.x = viewportWidth - hero.width;
         }
 
         // Manage crouch height transitions
@@ -187,14 +191,16 @@
     }
 
     function render() {
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.setTransform(deviceScale, 0, 0, deviceScale, 0, 0);
 
         // Background
-        const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        const gradient = ctx.createLinearGradient(0, 0, 0, viewportHeight);
         gradient.addColorStop(0, "#3c3c3c");
         gradient.addColorStop(1, "#1f1f1f");
         ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillRect(0, 0, viewportWidth, viewportHeight);
 
         // Platforms
         ctx.fillStyle = "#5b5b5b";
@@ -347,21 +353,74 @@
         });
     }
 
+    function rescaleWorld(scaleX, scaleY) {
+        if (!Number.isFinite(scaleX) || !Number.isFinite(scaleY)) {
+            return;
+        }
+
+        const normalizedScaleX = Math.abs(scaleX - 1) < 0.001 ? 1 : scaleX;
+        const normalizedScaleY = Math.abs(scaleY - 1) < 0.001 ? 1 : scaleY;
+
+        if (normalizedScaleX === 1 && normalizedScaleY === 1) {
+            return;
+        }
+
+        hero.x *= normalizedScaleX;
+        hero.y *= normalizedScaleY;
+        hero.width *= normalizedScaleX;
+        hero.height *= normalizedScaleY;
+        hero.standHeight *= normalizedScaleY;
+        hero.crouchHeight *= normalizedScaleY;
+        hero.vx *= normalizedScaleX;
+        hero.vy *= normalizedScaleY;
+        hero.speed *= normalizedScaleX;
+        hero.crouchSpeed *= normalizedScaleX;
+        hero.jumpVelocity *= normalizedScaleY;
+        hero.gravity *= normalizedScaleY;
+
+        platforms.forEach((platform) => {
+            platform.x *= normalizedScaleX;
+            platform.y *= normalizedScaleY;
+            platform.width *= normalizedScaleX;
+            platform.height *= normalizedScaleY;
+        });
+    }
+
     function handleResize() {
-        const ratio = canvas.width / canvas.height;
         const bounds = stage.getBoundingClientRect();
-        const availableWidth = bounds.width;
-        const targetHeight = availableWidth / ratio;
-        stage.style.height = `${targetHeight}px`;
+        const displayWidth = Math.max(1, Math.round(bounds.width));
+        const displayHeight = Math.max(1, Math.round(bounds.height));
+        const nextDpr = window.devicePixelRatio || 1;
+
+        const previousWidth = viewportWidth;
+        const previousHeight = viewportHeight;
+
+        viewportWidth = displayWidth;
+        viewportHeight = displayHeight;
+        deviceScale = nextDpr;
+
+        canvas.style.width = `${displayWidth}px`;
+        canvas.style.height = `${displayHeight}px`;
+
+        canvas.width = Math.round(displayWidth * nextDpr);
+        canvas.height = Math.round(displayHeight * nextDpr);
+
+        const scaleX = displayWidth / previousWidth;
+        const scaleY = displayHeight / previousHeight;
+
+        rescaleWorld(scaleX, scaleY);
     }
 
     function bindResizeObserver() {
         if (typeof ResizeObserver === "function") {
-            const observer = new ResizeObserver(handleResize);
+            const observer = new ResizeObserver(() => handleResize());
             observer.observe(stage);
-        } else {
-            window.addEventListener("resize", handleResize);
         }
+
+        window.addEventListener("resize", handleResize);
+        window.addEventListener("orientationchange", handleResize);
+        document.addEventListener("fullscreenchange", handleResize);
+
         handleResize();
     }
 

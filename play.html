@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game 05 Kira — Играть</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="play-page">
+    <div class="game-shell">
+        <div class="game-topbar">
+            <button class="topbar-button" data-action="enter-fullscreen">Полный экран</button>
+            <button class="topbar-button" data-action="exit-fullscreen">Выход из полноэкрана</button>
+        </div>
+
+        <div class="control-column control-column--left">
+            <button class="control-button" data-action="jump">Вверх</button>
+            <button class="control-button control-button--spacer" tabindex="-1" aria-hidden="true"></button>
+            <button class="control-button" data-action="crouch">Вниз</button>
+        </div>
+
+        <div class="game-stage" id="gameStage">
+            <canvas class="game-canvas" id="gameCanvas" width="960" height="540"></canvas>
+        </div>
+
+        <div class="control-column control-column--right">
+            <button class="control-button" data-action="move-left">Влево</button>
+            <button class="control-button control-button--spacer" tabindex="-1" aria-hidden="true"></button>
+            <button class="control-button" data-action="move-right">Вправо</button>
+        </div>
+    </div>
+    <script src="game.js"></script>
+</body>
+</html>

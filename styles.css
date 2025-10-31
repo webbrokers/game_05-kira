@@ -186,8 +186,13 @@ body.play-page {
 }
 
 .control-pad--horizontal {
-    right: 30px;
+    left: 30px;
     bottom: 30px;
+}
+
+.control-pad--jump {
+    right: 60px;
+    bottom: 60px;
 }
 
 .control-button {
@@ -200,15 +205,23 @@ body.play-page {
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: transform 0.1s ease, background 0.2s ease;
+    --control-button-scale: 1;
+    transform: scale(var(--control-button-scale));
+    transform-origin: center;
+    transition: transform 0.2s ease, background 0.2s ease;
     user-select: none;
     touch-action: manipulation;
     padding: 0;
 }
 
 .control-button:active {
-    transform: scale(0.92);
+    --control-button-scale: 0.92;
     background: rgba(58, 58, 58, 0.85);
+}
+
+.control-button--jump-active,
+.control-button--jump-active:active {
+    --control-button-scale: 2;
 }
 
 .control-button--arrow::before {

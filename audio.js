@@ -1,13 +1,13 @@
 (() => {
     const SOUND_DEFINITIONS = {
-        menuMusic: { src: "audio/menu-music.wav", type: "music", loop: true, volume: 0.35 },
-        gameMusic: { src: "audio/game-music.wav", type: "music", loop: true, volume: 0.3 },
-        runLoop: { src: "audio/run.wav", type: "loop", loop: true, volume: 0.5 },
-        jump: { src: "audio/jump.wav", type: "sfx", volume: 0.7 },
+        menuMusic: { src: "audio/new/menu_music_01.mp3", type: "music", loop: true, volume: 0.35 },
+        gameMusic: { src: "audio/new/main_theme_music_ledy-bag.mp3", type: "music", loop: true, volume: 0.3 },
+        runLoop: { src: "audio/new/run-03.mp3", type: "loop", loop: true, volume: 0.5 },
+        jump: { src: "audio/new/jump_03.mp3", type: "sfx", volume: 0.7 },
         land: { src: "audio/land.wav", type: "sfx", volume: 0.6 },
-        coin: { src: "audio/coin.wav", type: "sfx", volume: 0.75 },
-        fall: { src: "audio/fall.wav", type: "sfx", volume: 0.8 },
-        menuClick: { src: "audio/menu-click.wav", type: "sfx", volume: 0.6 },
+        coin: { src: "audio/new/coins-swoosh.mp3", type: "sfx", volume: 0.75 },
+        fall: { src: "audio/new/fall_01.mp3", type: "sfx", volume: 0.8 },
+        menuClick: { src: "audio/new/button-click_01.mp3", type: "sfx", volume: 0.6 },
     };
 
     const sounds = new Map();

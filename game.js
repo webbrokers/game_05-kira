@@ -9,10 +9,12 @@
     const restartButton = document.querySelector('[data-action="restart-game"]');
     const exitToMenuButton = document.querySelector('[data-action="exit-to-menu"]');
     const menuButton = document.querySelector('[data-action="open-menu"]');
+    const jumpButtonElement = document.querySelector('[data-action="jump"]');
     const coarsePointerMedia =
         typeof window.matchMedia === "function" ? window.matchMedia("(pointer: coarse)") : null;
     const audio = window.gameAudio || null;
     const FULLSCREEN_FLAG_KEY = "game05kira_fullscreen_requested";
+    let jumpBoostTimeoutId = null;
 
     if (gameOverOverlay) {
         gameOverOverlay.setAttribute("aria-hidden", "true");
@@ -26,6 +28,19 @@
         parallaxAmplitude: 24,
     };
 
+    const coinAnimation = {
+        image: null,
+        columns: 3,
+        rows: 2,
+        frameWidth: 0,
+        frameHeight: 0,
+        totalFrames: 0,
+        scale: 1 / 3,
+        frameDuration: 0.08,
+        drawWidth: 0,
+        drawHeight: 0,
+    };
+
     const heroFrameSources = Array.from({ length: 11 }, (_, index) => {
         const frameIndex = String(index + 1).padStart(2, "0");
         return `img-hero/run/run_${frameIndex}.png`;
@@ -33,6 +48,9 @@
 
     const heroFrames = [];
     const floorOffset = 40;
+    const PLATFORM_BOTTOM_OFFSET_MIN = 40;
+    const PLATFORM_BOTTOM_OFFSET_MAX = 100;
+    const coinPadding = 10;
     let viewportWidth = canvas.width;
     let viewportHeight = canvas.height;
     let deviceScale = window.devicePixelRatio || 1;
@@ -54,8 +72,6 @@
 
     const platforms = [];
     const coins = [];
-    const coinSize = 22;
-    const coinPadding = 6;
     const worldSeed = 1337;
     const MAX_LIVES = 3;
     const gameState = {
@@ -69,11 +85,11 @@
 
     const hero = {
         x: 120,
-        y: world.height - floorOffset - 148,
-        width: 62,
-        standHeight: 148,
-        crouchHeight: 100,
-        height: 148,
+        y: world.height - floorOffset - 222,
+        width: 93,
+        standHeight: 222,
+        crouchHeight: 150,
+        height: 222,
         vx: 0,
         vy: 0,
         speed: 220,
@@ -118,13 +134,54 @@
         });
     }
 
+    function configureCoinAnimation(image) {
+        if (!image) {
+            return;
+        }
+
+        const naturalWidth = image.naturalWidth || image.width || 0;
+        const naturalHeight = image.naturalHeight || image.height || 0;
+
+        coinAnimation.image = image;
+        coinAnimation.frameWidth = naturalWidth / coinAnimation.columns;
+        coinAnimation.frameHeight = naturalHeight / coinAnimation.rows;
+        coinAnimation.totalFrames = coinAnimation.columns * coinAnimation.rows;
+        coinAnimation.drawWidth = coinAnimation.frameWidth * coinAnimation.scale;
+        coinAnimation.drawHeight = coinAnimation.frameHeight * coinAnimation.scale;
+    }
+
+    function getCoinDrawWidth() {
+        if (coinAnimation.drawWidth) {
+            return coinAnimation.drawWidth;
+        }
+        if (coinAnimation.frameWidth) {
+            return coinAnimation.frameWidth * (coinAnimation.scale || 1);
+        }
+        return 48;
+    }
+
+    function getCoinDrawHeight() {
+        if (coinAnimation.drawHeight) {
+            return coinAnimation.drawHeight;
+        }
+        if (coinAnimation.frameHeight) {
+            return coinAnimation.frameHeight * (coinAnimation.scale || 1);
+        }
+        return 48;
+    }
+
     function init() {
         const heroPromises = heroFrameSources.map(loadImage);
-        Promise.all([...heroPromises, loadImage("img/forest.png")])
-            .then((assets) => {
-                background.image = assets.pop();
-                heroFrames.push(...assets);
+        Promise.all([
+            Promise.all(heroPromises),
+            loadImage("img/background_02.png"),
+            loadImage("img/coin-movie.png"),
+        ])
+            .then(([heroImages, backgroundImage, coinImage]) => {
+                background.image = backgroundImage;
+                heroFrames.push(...heroImages);
                 heroSpriteMetrics = computeSpriteMetrics(heroFrames);
+                configureCoinAnimation(coinImage);
                 applyHeroDimensions(hero.height);
                 initializeWorldContent(true);
                 updateCoinDisplay();
@@ -135,7 +192,7 @@
                 requestAnimationFrame(loop);
             })
             .catch((err) => {
-                console.error("\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u0441\u043f\u0440\u0430\u0439\u0442\u044b \u0433\u0435\u0440\u043e\u044f", err);
+                console.error("\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u0440\u0435\u0441\u0443\u0440\u0441\u044b \u0438\u0433\u0440\u044b", err);
             });
     }
 
@@ -151,6 +208,12 @@
 
     function clamp(value, min, max) {
         return Math.min(Math.max(value, min), max);
+    }
+
+    function clampPlatformYToBottomRange(y) {
+        const minY = world.height - PLATFORM_BOTTOM_OFFSET_MAX;
+        const maxY = Math.min(world.height - PLATFORM_BOTTOM_OFFSET_MIN, world.height - floorOffset);
+        return clamp(y, minY, Math.max(minY, maxY));
     }
 
     function updateCoinDisplay() {
@@ -184,6 +247,30 @@
         inputState.right = false;
         inputState.crouch = false;
         inputState.jumpRequested = false;
+        clearJumpVisualBoost();
+    }
+
+    function clearJumpVisualBoost() {
+        if (jumpBoostTimeoutId) {
+            window.clearTimeout(jumpBoostTimeoutId);
+            jumpBoostTimeoutId = null;
+        }
+        jumpButtonElement?.classList.remove("control-button--jump-active");
+    }
+
+    function triggerJumpVisualBoost() {
+        if (!jumpButtonElement) {
+            return;
+        }
+
+        jumpButtonElement.classList.add("control-button--jump-active");
+        if (jumpBoostTimeoutId) {
+            window.clearTimeout(jumpBoostTimeoutId);
+        }
+        jumpBoostTimeoutId = window.setTimeout(() => {
+            jumpButtonElement.classList.remove("control-button--jump-active");
+            jumpBoostTimeoutId = null;
+        }, 1000);
     }
 
     function setGameOverState(isGameOver) {
@@ -504,13 +591,23 @@
     }
 
     function addCoinForPlatform(platform) {
+        const coinWidth = getCoinDrawWidth();
+        const coinHeight = getCoinDrawHeight();
+        const frameDuration = coinAnimation.frameDuration || 0.08;
+        const totalFrames = Math.max(1, coinAnimation.totalFrames || 1);
+        const baseY = platform.y - coinHeight - coinPadding;
         const coin = {
-            x: platform.x + platform.width / 2 - coinSize / 2,
-            y: platform.y - coinSize - coinPadding,
-            size: coinSize,
+            x: platform.x + platform.width / 2 - coinWidth / 2,
+            y: baseY,
+            baseY,
+            width: coinWidth,
+            height: coinHeight,
             collected: false,
-            rotation: Math.random() * Math.PI * 2,
-            spinSpeed: 2.5 + Math.random() * 1.5,
+            animFrame: Math.floor(Math.random() * totalFrames),
+            animTimer: Math.random() * frameDuration,
+            bobTimer: Math.random() * Math.PI * 2,
+            bobSpeed: 3.2 + Math.random() * 1.4,
+            bobAmplitude: 6,
         };
 
         coins.push(coin);
@@ -533,6 +630,7 @@
         coins.length = 0;
         gameState.coinsCollected = 0;
         gameState.lives = MAX_LIVES;
+        clearJumpVisualBoost();
         setGameOverState(false);
         updateCoinDisplay();
         updateLifeDisplay();
@@ -590,7 +688,8 @@
             for (let i = 0; i < platforms.length; i += 1) {
                 const p = platforms[i];
                 // Move down while keeping a minimum clearance from the ground
-                p.y = clamp(p.y + levelLowering, bottomZoneTop, groundY - minGroundClearance);
+                const loweredY = clamp(p.y + levelLowering, bottomZoneTop, groundY - minGroundClearance);
+                p.y = clampPlatformYToBottomRange(loweredY);
             }
             // Reposition coins relative to lowered platforms
             coins.length = 0;
@@ -799,24 +898,39 @@
     }
 
     function updateCoins(delta) {
+        if (coins.length === 0) {
+            return;
+        }
+
         const heroRight = hero.x + hero.width;
         const heroBottom = hero.y + hero.height;
+        const frameDuration = coinAnimation.frameDuration || 0.08;
+        const totalFrames = Math.max(1, coinAnimation.totalFrames || 1);
 
         coins.forEach((coin) => {
             if (coin.collected) {
                 return;
             }
 
-            coin.rotation = (coin.rotation + coin.spinSpeed * delta) % (Math.PI * 2);
+            coin.animTimer += delta;
+            if (coin.animTimer >= frameDuration) {
+                const framesToAdvance = Math.floor(coin.animTimer / frameDuration);
+                coin.animFrame = (coin.animFrame + framesToAdvance) % totalFrames;
+                coin.animTimer -= frameDuration * framesToAdvance;
+            }
 
-            const coinRight = coin.x + coin.size;
-            const coinBottom = coin.y + coin.size;
+            const bobSpeed = coin.bobSpeed || 1;
+            coin.bobTimer = (coin.bobTimer + delta * bobSpeed) % (Math.PI * 2);
+
+            const coinTop = coin.baseY ?? coin.y;
+            const coinRight = coin.x + coin.width;
+            const coinBottom = coinTop + coin.height;
 
             const isOverlapping =
                 hero.x < coinRight &&
                 heroRight > coin.x &&
                 hero.y < coinBottom &&
-                heroBottom > coin.y;
+                heroBottom > coinTop;
 
             if (isOverlapping) {
                 coin.collected = true;
@@ -945,57 +1059,35 @@
         });
 
         // Coins
-        coins.forEach((coin) => {
-            if (coin.collected) {
-                return;
-            }
+        if (coinAnimation.image) {
+            const totalFrames = Math.max(1, coinAnimation.totalFrames || 1);
+            coins.forEach((coin) => {
+                if (coin.collected) {
+                    return;
+                }
 
-            const rotation = coin.rotation ?? 0;
-            const spinCos = Math.cos(rotation);
-            const spinScale = 0.6 + 0.35 * Math.abs(spinCos);
-            const bobOffset = Math.sin(rotation * 2) * 2;
-            const centerX = coin.x + coin.size / 2;
-            const centerY = coin.y + coin.size / 2 + bobOffset;
-            const radius = coin.size / 2;
-            const frontColor = spinCos >= 0 ? "#ffd86b" : "#e0b652";
-            const highlightColor = spinCos >= 0 ? "#fff3b0" : "#f0d37a";
-            const rimColor = "#d48b2c";
+                const frameIndex = coin.animFrame % totalFrames;
+                const column = frameIndex % coinAnimation.columns;
+                const row = Math.floor(frameIndex / coinAnimation.columns);
+                const sourceX = column * coinAnimation.frameWidth;
+                const sourceY = row * coinAnimation.frameHeight;
+                const bobOffset = Math.sin(coin.bobTimer) * (coin.bobAmplitude ?? 6);
+                const drawX = coin.x;
+                const drawY = (coin.baseY ?? coin.y) + bobOffset;
 
-            ctx.save();
-            ctx.translate(centerX, centerY);
-            ctx.scale(spinScale, 1);
-
-            const gradient = ctx.createRadialGradient(0, 0, radius * 0.15, 0, 0, radius);
-            gradient.addColorStop(0, highlightColor);
-            gradient.addColorStop(0.65, frontColor);
-            gradient.addColorStop(1, rimColor);
-
-            ctx.beginPath();
-            ctx.arc(0, 0, radius, 0, Math.PI * 2);
-            ctx.fillStyle = gradient;
-            ctx.fill();
-
-            ctx.lineWidth = 2 / Math.max(spinScale, 0.4);
-            ctx.strokeStyle = "rgba(212, 139, 44, 0.9)";
-            ctx.stroke();
-
-            ctx.beginPath();
-            ctx.strokeStyle = "rgba(255, 255, 255, 0.35)";
-            ctx.lineWidth = 1.2 / Math.max(spinScale, 0.4);
-            if (typeof ctx.ellipse === "function") {
-                ctx.ellipse(-radius * 0.2, 0, radius * 0.6, radius * 0.9, 0, -Math.PI / 3, Math.PI / 3);
-                ctx.stroke();
-            } else {
-                ctx.save();
-                ctx.translate(-radius * 0.2, 0);
-                ctx.scale(0.6, 0.9);
-                ctx.arc(0, 0, radius, -Math.PI / 3, Math.PI / 3);
-                ctx.restore();
-                ctx.stroke();
-            }
-
-            ctx.restore();
-        });
+                ctx.drawImage(
+                    coinAnimation.image,
+                    sourceX,
+                    sourceY,
+                    coinAnimation.frameWidth,
+                    coinAnimation.frameHeight,
+                    drawX,
+                    drawY,
+                    coin.width,
+                    coin.height
+                );
+            });
+        }
 
         const frame = heroFrames[hero.animFrame];
         const heroVisible = hero.invulnerabilityTimer <= 0 || Math.floor((hero.blinkTimer ?? 0) / 0.1) % 2 === 0;
@@ -1062,6 +1154,9 @@
             case "jump":
                 if (isActive) {
                     inputState.jumpRequested = true;
+                    if (hero.jumpCount < hero.maxJumps) {
+                        triggerJumpVisualBoost();
+                    }
                 }
                 break;
             default:

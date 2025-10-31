@@ -9,6 +9,8 @@
     const restartButton = document.querySelector('[data-action="restart-game"]');
     const exitToMenuButton = document.querySelector('[data-action="exit-to-menu"]');
     const menuButton = document.querySelector('[data-action="open-menu"]');
+    const prestartOverlay = document.getElementById("prestartOverlay");
+    const startChaseButton = document.querySelector('[data-action="start-chase"]');
     const jumpButtonElement = document.querySelector('[data-action="jump"]');
     const coarsePointerMedia =
         typeof window.matchMedia === "function" ? window.matchMedia("(pointer: coarse)") : null;
@@ -21,6 +23,10 @@
     }
     if (orientationOverlay) {
         orientationOverlay.setAttribute("aria-hidden", "true");
+    }
+    if (prestartOverlay) {
+        prestartOverlay.hidden = false;
+        prestartOverlay.setAttribute("aria-hidden", "false");
     }
 
     const background = {
@@ -81,6 +87,7 @@
         fallThreshold: 0,
         isGameOver: false,
         orientationBlocked: false,
+        awaitingStart: true,
     };
     let worldInitialized = false;
 
@@ -116,6 +123,37 @@
     };
 
     let wasHeroRunning = false;
+
+    function setPrestartState(active) {
+        gameState.awaitingStart = active;
+        if (prestartOverlay) {
+            prestartOverlay.hidden = !active;
+            prestartOverlay.setAttribute("aria-hidden", String(!active));
+        }
+        if (active) {
+            resetInputState();
+            hero.vx = 0;
+            hero.vy = 0;
+            lastTimestamp = 0;
+        } else {
+            lastTimestamp = 0;
+        }
+    }
+
+    function startChaseSequence() {
+        if (!gameState.awaitingStart) {
+            return;
+        }
+        audio?.playMenuClick();
+        const result = requestStageFullscreen();
+        if (result) {
+            handleFullscreenResult(result);
+        } else {
+            attemptLandscapeLock();
+            updateOrientationBlock();
+        }
+        setPrestartState(false);
+    }
 
     const inputState = {
         left: false,
@@ -297,6 +335,9 @@
         if (orientationOverlay) {
             orientationOverlay.hidden = !blocked;
             orientationOverlay.setAttribute("aria-hidden", String(!blocked));
+        }
+        if (startChaseButton && gameState.awaitingStart) {
+            startChaseButton.disabled = blocked;
         }
         if (blocked) {
             resetInputState();
@@ -757,7 +798,9 @@
     }
 
     function update(delta) {
-        if (!gameState.orientationBlocked && !gameState.isGameOver) {
+        const inputBlocked =
+            gameState.orientationBlocked || gameState.isGameOver || gameState.awaitingStart;
+        if (!inputBlocked) {
             handleInput();
         } else {
             inputState.jumpRequested = false;
@@ -774,7 +817,7 @@
             hero.blinkTimer = 0;
         }
 
-        if (gameState.orientationBlocked || gameState.isGameOver) {
+        if (gameState.orientationBlocked || gameState.isGameOver || gameState.awaitingStart) {
             hero.vx = 0;
             hero.vy = 0;
             updateCamera();
@@ -1230,6 +1273,15 @@
         });
     }
 
+    function bindStartChaseButton() {
+        if (!startChaseButton) {
+            return;
+        }
+        startChaseButton.addEventListener("click", () => {
+            startChaseSequence();
+        });
+    }
+
     function bindMenuButton() {
         if (!menuButton) {
             return;
@@ -1336,6 +1388,8 @@
         handleResize();
     }
 
+    bindStartChaseButton();
+    setPrestartState(true);
     bindControlButtons();
     bindKeyboard();
     bindMenuButton();

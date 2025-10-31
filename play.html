@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Game 05 Kira — Играть</title>
+    <title>Game 05 Kira — Игра</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body class="play-page">
@@ -11,10 +11,7 @@
         <canvas class="game-canvas" id="gameCanvas" width="960" height="540"></canvas>
 
         <div class="game-topbar">
-            <div class="topbar-button-group">
-                <button class="topbar-button" data-action="enter-fullscreen">Полный экран</button>
-                <button class="topbar-button" data-action="exit-fullscreen">Выход из полноэкрана</button>
-            </div>
+            <button class="topbar-button topbar-button--menu" data-action="open-menu">Меню</button>
             <div class="hud hud--coins" id="coinDisplay" aria-live="polite">
                 <span class="hud-label">Монеты</span>
                 <span class="hud-value" id="coinCountValue">0</span>
@@ -32,7 +29,8 @@
             <button class="control-button control-button--arrow control-button--left" data-action="move-left" aria-label="Движение влево"></button>
             <button class="control-button control-button--arrow control-button--right" data-action="move-right" aria-label="Движение вправо"></button>
         </div>
-        <div class="overlay overlay--game-over" id="gameOverOverlay" hidden>
+
+        <div class="overlay overlay--game-over" id="gameOverOverlay" hidden aria-hidden="true">
             <div class="overlay-card" role="dialog" aria-modal="true" aria-labelledby="gameOverTitle">
                 <h2 class="overlay-title" id="gameOverTitle">Игра окончена</h2>
                 <p class="overlay-text">Хотите попробовать ещё раз или вернуться в меню?</p>
@@ -43,7 +41,7 @@
             </div>
         </div>
 
-        <div class="overlay overlay--orientation" id="orientationOverlay" hidden>
+        <div class="overlay overlay--orientation" id="orientationOverlay" hidden aria-hidden="true">
             <div class="overlay-card" role="alert" aria-live="assertive">
                 <h2 class="overlay-title">Поверните устройство</h2>
                 <p class="overlay-text">Пожалуйста, поверните устройство горизонтально и включите игру в полноэкранном режиме.</p>

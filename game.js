@@ -8,6 +8,7 @@
     const orientationOverlay = document.getElementById("orientationOverlay");
     const restartButton = document.querySelector('[data-action="restart-game"]');
     const exitToMenuButton = document.querySelector('[data-action="exit-to-menu"]');
+    const menuButton = document.querySelector('[data-action="open-menu"]');
     const coarsePointerMedia =
         typeof window.matchMedia === "function" ? window.matchMedia("(pointer: coarse)") : null;
 
@@ -880,40 +881,17 @@
         });
     }
 
-    function toggleFullscreen(shouldEnter) {
-        if (shouldEnter) {
-            if (!document.fullscreenElement && stage.requestFullscreen) {
-                try {
-                    const request = stage.requestFullscreen();
-                    if (request && typeof request.then === "function") {
-                        request
-                            .then(() => {
-                                attemptLandscapeLock();
-                                updateOrientationBlock();
-                            })
-                            .catch(() => {});
-                    } else {
-                        attemptLandscapeLock();
-                        updateOrientationBlock();
-                    }
-                } catch (err) {
-                    // Ignore fullscreen errors.
-                }
-            } else if (document.fullscreenElement) {
-                attemptLandscapeLock();
-                updateOrientationBlock();
-            }
-        } else if (document.fullscreenElement) {
-            document.exitFullscreen?.();
+    function bindMenuButton() {
+        if (!menuButton) {
+            return;
         }
-    }
 
-    function bindFullscreenButtons() {
-        document.querySelector('[data-action="enter-fullscreen"]').addEventListener("click", () => {
-            toggleFullscreen(true);
-        });
-        document.querySelector('[data-action="exit-fullscreen"]').addEventListener("click", () => {
-            toggleFullscreen(false);
+        menuButton.addEventListener("click", () => {
+            resetInputState();
+            if (document.fullscreenElement) {
+                document.exitFullscreen?.();
+            }
+            window.location.href = "index.html";
         });
     }
 
@@ -929,6 +907,10 @@
 
         if (exitToMenuButton) {
             exitToMenuButton.addEventListener("click", () => {
+                resetInputState();
+                if (document.fullscreenElement) {
+                    document.exitFullscreen?.();
+                }
                 window.location.href = "index.html";
             });
         }
@@ -999,7 +981,7 @@
 
     bindControlButtons();
     bindKeyboard();
-    bindFullscreenButtons();
+    bindMenuButton();
     bindGameMenus();
     bindOrientationListeners();
     bindResizeObserver();

@@ -71,18 +71,13 @@ body.play-page {
 
 .game-topbar {
     position: absolute;
-    top: 1rem;
-    right: 1rem;
+    top: 30px;
+    right: 30px;
     display: flex;
     flex-direction: column;
     align-items: flex-end;
     gap: 0.5rem;
     z-index: 20;
-}
-
-.topbar-button-group {
-    display: flex;
-    gap: 0.5rem;
 }
 
 .topbar-button {
@@ -142,8 +137,8 @@ body.play-page {
 
 .hud--lives {
     position: absolute;
-    top: 1rem;
-    left: 1rem;
+    top: 30px;
+    left: 30px;
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -186,13 +181,13 @@ body.play-page {
 
 .control-pad--vertical {
     flex-direction: column;
-    left: 1.5rem;
-    bottom: 1.5rem;
+    left: 30px;
+    bottom: 30px;
 }
 
 .control-pad--horizontal {
-    right: 1.5rem;
-    bottom: 1.5rem;
+    right: 30px;
+    bottom: 30px;
 }
 
 .control-button {

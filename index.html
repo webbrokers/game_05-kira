@@ -9,7 +9,14 @@
 <body class="menu-page">
     <main class="menu-container">
         <h1 class="menu-title">Game 05: Kira</h1>
-        <a class="menu-button" href="play.html">Играть</a>
+        <a class="menu-button" href="play.html" data-action="start-game">Играть</a>
     </main>
+    <div class="overlay overlay--orientation" id="orientationOverlay" hidden aria-hidden="true">
+        <div class="overlay-card" role="alert" aria-live="assertive">
+            <h2 class="overlay-title">Поверните устройство</h2>
+            <p class="overlay-text">Пожалуйста, поверните устройство горизонтально и включите игру в полноэкранном режиме.</p>
+        </div>
+    </div>
+    <script src="index.js"></script>
 </body>
 </html>

@@ -718,27 +718,6 @@
         });
     }
 
-*** End Patch
-                return;
-            }
-
-            const coinRight = coin.x + coin.size;
-            const coinBottom = coin.y + coin.size;
-
-            const isOverlapping =
-                hero.x < coinRight &&
-                heroRight > coin.x &&
-                hero.y < coinBottom &&
-                heroBottom > coin.y;
-
-            if (isOverlapping) {
-                coin.collected = true;
-                gameState.coinsCollected += 1;
-                updateCoinDisplay();
-            }
-        });
-    }
-
     function updateCamera() {
         camera.width = viewportWidth;
         camera.height = viewportHeight;

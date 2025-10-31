@@ -56,6 +56,24 @@
         }
     }
 
+    function requestAnyFullscreen() {
+        try {
+            const root = document.documentElement;
+            const method =
+                root.requestFullscreen ||
+                root.webkitRequestFullscreen ||
+                root.msRequestFullscreen;
+            if (typeof method === "function") {
+                const res = method.call(root);
+                if (res && typeof res.catch === "function") {
+                    res.catch(() => {});
+                }
+            }
+        } catch (_) {
+            // Ignore
+        }
+    }
+
     function bindStartButton() {
         if (!playLink) {
             return;
@@ -74,8 +92,21 @@
                 }
             }
 
+            // Try to enter fullscreen immediately on user gesture (best effort)
+            requestAnyFullscreen();
+
             const targetHref = playLink.getAttribute("href") || "play.html";
-            window.location.href = targetHref;
+            let targetUrl = targetHref;
+            try {
+                const url = new URL(targetHref, window.location.href);
+                url.searchParams.set("fs", "1");
+                targetUrl = url.pathname + url.search + url.hash;
+            } catch (_) {
+                // Fallback to hash flag if URL construction fails (e.g., older browsers)
+                targetUrl = `${targetHref}${targetHref.includes("#") ? "" : "#fs"}`;
+            }
+
+            window.location.href = targetUrl;
         });
     }
 

@@ -248,20 +248,26 @@
     }
 
     function requestStageFullscreen() {
-        if (!stage) {
-            return null;
-        }
+        const candidates = [];
+        if (stage) candidates.push(stage);
+        if (document && document.documentElement) candidates.push(document.documentElement);
 
-        const method =
-            stage.requestFullscreen ||
-            stage.webkitRequestFullscreen ||
-            stage.msRequestFullscreen;
-
-        if (typeof method === "function") {
-            try {
-                return method.call(stage);
-            } catch (err) {
-                return null;
+        for (let i = 0; i < candidates.length; i += 1) {
+            const el = candidates[i];
+            const req =
+                el.requestFullscreen ||
+                el.webkitRequestFullscreen ||
+                el.msRequestFullscreen;
+            if (typeof req === "function") {
+                try {
+                    const res = req.call(el);
+                    if (res && typeof res.then === "function") {
+                        return res;
+                    }
+                    return res ?? true;
+                } catch (_) {
+                    // try next candidate
+                }
             }
         }
 
@@ -282,41 +288,118 @@
         }
     }
 
+    function consumeFullscreenIntent() {
+        if (typeof window === "undefined") {
+            return false;
+        }
+
+        let shouldRequest = false;
+
+        try {
+            if (window.sessionStorage?.getItem(FULLSCREEN_FLAG_KEY) === "1") {
+                shouldRequest = true;
+                window.sessionStorage.removeItem(FULLSCREEN_FLAG_KEY);
+            }
+        } catch (_) {
+            // Ignore storage access errors.
+        }
+
+        try {
+            const currentUrl = new URL(window.location.href);
+            const hasSearchFlag = currentUrl.searchParams.get("fs") === "1";
+            const hasHashFlag =
+                currentUrl.hash === "#fs" || currentUrl.hash === "#fullscreen";
+
+            if (!shouldRequest && (hasSearchFlag || hasHashFlag)) {
+                shouldRequest = true;
+            }
+
+            if (hasSearchFlag) {
+                currentUrl.searchParams.delete("fs");
+            }
+            if (hasHashFlag) {
+                currentUrl.hash = "";
+            }
+
+            if (hasSearchFlag || hasHashFlag) {
+                const sanitizedUrl =
+                    currentUrl.pathname +
+                    (currentUrl.search || "") +
+                    (currentUrl.hash || "");
+                try {
+                    window.history.replaceState(null, "", sanitizedUrl);
+                } catch (_) {
+                    // Fallback: ignore if history API not available.
+                }
+            }
+        } catch (_) {
+            // Ignore URL parsing issues (e.g., older browsers).
+        }
+
+        return shouldRequest;
+    }
+
     function enterFullscreenIfRequested() {
         if (typeof window === "undefined") {
             return;
         }
 
-        let shouldRequest = false;
-        try {
-            shouldRequest =
-                window.sessionStorage?.getItem(FULLSCREEN_FLAG_KEY) === "1";
-            if (shouldRequest) {
-                window.sessionStorage.removeItem(FULLSCREEN_FLAG_KEY);
-            }
-        } catch (err) {
-            shouldRequest = false;
-        }
-
-        if (!shouldRequest) {
+        if (!consumeFullscreenIntent()) {
             return;
         }
 
-        const result = requestStageFullscreen();
-        if (result) {
-            handleFullscreenResult(result);
-        } else {
+        const attempt = () => {
+            const result = requestStageFullscreen();
+            if (result) {
+                handleFullscreenResult(result);
+                return true;
+            }
+            return false;
+        };
+
+        const scheduleRetries = () => {
+            const retry = () => {
+                if (!document.fullscreenElement) {
+                    attempt();
+                }
+            };
+
+            setTimeout(retry, 32);
+            setTimeout(retry, 260);
+            setTimeout(retry, 1000);
+
+            window.addEventListener(
+                "pageshow",
+                () => {
+                    if (!document.fullscreenElement) {
+                        attempt();
+                    }
+                },
+                { once: true }
+            );
+
             attemptLandscapeLock();
             updateOrientationBlock();
+        };
+
+        if (!attempt()) {
+            scheduleRetries();
+            if (document.readyState !== "complete") {
+                window.addEventListener(
+                    "load",
+                    () => {
+                        if (!document.fullscreenElement) {
+                            attempt();
+                        }
+                    },
+                    { once: true }
+                );
+            }
         }
     }
 
     function bindFullscreenFallback() {
-        if (!stage) {
-            return;
-        }
-
-        const handler = () => {
+        const tryFs = () => {
             if (!document.fullscreenElement) {
                 const result = requestStageFullscreen();
                 if (result) {
@@ -326,10 +409,14 @@
                     updateOrientationBlock();
                 }
             }
-            stage.removeEventListener("pointerdown", handler);
+            window.removeEventListener("pointerdown", tryFs, true);
+            window.removeEventListener("keydown", tryFs, true);
+            window.removeEventListener("touchstart", tryFs, true);
         };
 
-        stage.addEventListener("pointerdown", handler);
+        window.addEventListener("pointerdown", tryFs, true);
+        window.addEventListener("keydown", tryFs, true);
+        window.addEventListener("touchstart", tryFs, true);
     }
 
     function computeSpriteMetrics(frames) {
@@ -451,18 +538,22 @@
         updateLifeDisplay();
 
         const groundY = world.height - floorOffset;
+        const levelVerticalOffset = Math.round(world.height * 0.3);
         const bottomZoneHeight = Math.max(120, Math.round(world.height * 0.3));
-        const bottomZoneTop = Math.max(hero.standHeight * 0.5, world.height - bottomZoneHeight);
+        const bottomZoneTop = Math.max(
+            hero.standHeight * 0.5,
+            world.height - bottomZoneHeight
+        );
         const maxOffsetFromGround = Math.max(groundY - bottomZoneTop, 60);
         const minGroundClearance = Math.max(50, Math.round(maxOffsetFromGround * 0.3));
         const primaryPlatformY = clamp(
-            groundY - Math.max(minGroundClearance + 40, Math.round(maxOffsetFromGround * 0.55)),
+            groundY - Math.max(minGroundClearance + 40, Math.round(maxOffsetFromGround * 0.55)) + levelVerticalOffset,
             bottomZoneTop,
             groundY - minGroundClearance
         );
         const secondaryOffset = Math.max(32, Math.round(maxOffsetFromGround * 0.25));
         const secondPlatformY = clamp(
-            primaryPlatformY - secondaryOffset,
+            primaryPlatformY - secondaryOffset + 0,
             bottomZoneTop,
             groundY - minGroundClearance
         );
@@ -491,6 +582,21 @@
             const maxPlatformY = groundY - minGroundClearance;
             const targetY = clamp(lastPlatform.y + heightOffset, minPlatformY, maxPlatformY);
             lastPlatform = addPlatform(nextX, targetY, width, 24);
+        }
+
+        // Lower all platforms and coins by ~30% of viewport height, clamped to safe range near the ground
+        const levelLowering = Math.round(world.height * 0.3);
+        if (platforms.length > 0) {
+            for (let i = 0; i < platforms.length; i += 1) {
+                const p = platforms[i];
+                // Move down while keeping a minimum clearance from the ground
+                p.y = clamp(p.y + levelLowering, bottomZoneTop, groundY - minGroundClearance);
+            }
+            // Reposition coins relative to lowered platforms
+            coins.length = 0;
+            for (let i = 0; i < platforms.length; i += 1) {
+                addCoinForPlatform(platforms[i]);
+            }
         }
 
         if (!firstPlatform && platforms.length > 0) {
@@ -1155,4 +1261,3 @@
     bindFullscreenFallback();
     init();
 })();
-

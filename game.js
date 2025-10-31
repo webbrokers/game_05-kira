@@ -451,17 +451,19 @@
         updateLifeDisplay();
 
         const groundY = world.height - floorOffset;
-        const basePlatformOffset = Math.max(80, Math.round(viewportHeight * 0.2));
-        const minGroundClearance = Math.max(50, Math.round(basePlatformOffset * 0.45));
+        const bottomZoneHeight = Math.max(120, Math.round(world.height * 0.3));
+        const bottomZoneTop = Math.max(hero.standHeight * 0.5, world.height - bottomZoneHeight);
+        const maxOffsetFromGround = Math.max(groundY - bottomZoneTop, 60);
+        const minGroundClearance = Math.max(50, Math.round(maxOffsetFromGround * 0.3));
         const primaryPlatformY = clamp(
-            groundY - basePlatformOffset,
-            hero.standHeight * 0.5,
+            groundY - Math.max(minGroundClearance + 40, Math.round(maxOffsetFromGround * 0.55)),
+            bottomZoneTop,
             groundY - minGroundClearance
         );
-        const secondaryOffset = Math.max(40, Math.round(basePlatformOffset * 0.3));
+        const secondaryOffset = Math.max(32, Math.round(maxOffsetFromGround * 0.25));
         const secondPlatformY = clamp(
             primaryPlatformY - secondaryOffset,
-            primaryPlatformY - 160,
+            bottomZoneTop,
             groundY - minGroundClearance
         );
 
@@ -473,18 +475,19 @@
         let lastPlatform = firstPlatform;
         lastPlatform = addPlatform(520, secondPlatformY, 280, 24);
 
+        const verticalAmplitude = Math.max(40, Math.round(maxOffsetFromGround * 0.35));
         const maxAdditionalPlatforms = 6;
         for (let index = 0; index < maxAdditionalPlatforms; index += 1) {
             const gap = 120 + random() * 60;
             const width = 220 + random() * 120;
-            const heightOffset = (random() - 0.5) * Math.max(120, basePlatformOffset * 0.8);
+            const heightOffset = (random() - 0.5) * verticalAmplitude;
 
             const nextX = lastPlatform.x + lastPlatform.width + gap;
             if (nextX + width > world.width - 120) {
                 break;
             }
 
-            const minPlatformY = Math.max(hero.standHeight * 0.5, groundY - basePlatformOffset - 180);
+            const minPlatformY = bottomZoneTop;
             const maxPlatformY = groundY - minGroundClearance;
             const targetY = clamp(lastPlatform.y + heightOffset, minPlatformY, maxPlatformY);
             lastPlatform = addPlatform(nextX, targetY, width, 24);
@@ -1152,6 +1155,4 @@
     bindFullscreenFallback();
     init();
 })();
-
-
 

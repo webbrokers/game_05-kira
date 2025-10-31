@@ -1,5 +1,5 @@
 (() => {
-    const playLink = document.querySelector('[data-action="start-game"]');
+    const playButton = document.querySelector('[data-action="start-game"]');
     const fullscreenButton = document.querySelector('[data-action="enter-fullscreen"]');
     const orientationOverlay = document.getElementById("orientationOverlay");
     const coarsePointerMedia =
@@ -88,22 +88,33 @@
         }
     }
 
+    function enablePlayButton() {
+        if (!playButton) {
+            return;
+        }
+        playButton.disabled = false;
+    }
+
     function bindStartButton() {
-        if (!playLink) {
+        if (!playButton) {
             return;
         }
 
-        playLink.addEventListener("click", (event) => {
+        playButton.addEventListener("click", (event) => {
+            if (playButton.disabled) {
+                event.preventDefault();
+                return;
+            }
+
             event.preventDefault();
             audio?.playMenuClick();
-            audio?.stopMusic();
 
             flagFullscreenIntent();
 
             // Try to enter fullscreen immediately on user gesture (best effort)
             requestAnyFullscreen();
 
-            const targetHref = playLink.getAttribute("href") || "play.html";
+            const targetHref = playButton.dataset.target || "play.html";
             let targetUrl = targetHref;
             try {
                 const url = new URL(targetHref, window.location.href);
@@ -129,6 +140,7 @@
             flagFullscreenIntent();
             requestAnyFullscreen();
             attemptLandscapeLock();
+            enablePlayButton();
         });
     }
 

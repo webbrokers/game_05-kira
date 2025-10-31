@@ -158,7 +158,6 @@
                 updateCoinDisplay();
                 updateLifeDisplay();
                 updateFallThreshold();
-                audio?.playGameMusic();
                 audio?.setRunningLoop(false);
                 requestAnimationFrame(loop);
             })

@@ -59,8 +59,22 @@ body.play-page * {
     transition: transform 0.2s ease, background 0.2s ease;
 }
 
-.menu-button:hover,
-.menu-button:focus-visible {
+.menu-button:disabled {
+    background: #4b4b4b;
+    color: rgba(255, 255, 255, 0.55);
+    cursor: not-allowed;
+    transform: none;
+    opacity: 0.85;
+}
+
+.menu-button:disabled:hover,
+.menu-button:disabled:focus-visible {
+    background: #4b4b4b;
+    transform: none;
+}
+
+.menu-button:not(:disabled):hover,
+.menu-button:not(:disabled):focus-visible {
     transform: translateY(-2px);
     background: #ff9e32;
 }

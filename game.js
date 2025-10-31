@@ -626,8 +626,14 @@
         coins.push(coin);
     }
 
-    function addPlatform(x, y, width, height) {
-        const platform = { x, y, width, height };
+    function addPlatform(x, y, width, height, metadata) {
+        const platform = {
+            x,
+            y,
+            width,
+            height,
+            ...(metadata ?? {}),
+        };
         platforms.push(platform);
         addCoinForPlatform(platform);
         return platform;
@@ -638,7 +644,6 @@
             return;
         }
 
-        const random = createRandomGenerator(worldSeed);
         platforms.length = 0;
         coins.length = 0;
         gameState.coinsCollected = 0;
@@ -657,42 +662,87 @@
         );
         const maxOffsetFromGround = Math.max(groundY - bottomZoneTop, 60);
         const minGroundClearance = Math.max(50, Math.round(maxOffsetFromGround * 0.3));
-        const primaryPlatformY = clamp(
+        const basePlatformY = clamp(
             groundY - Math.max(minGroundClearance + 40, Math.round(maxOffsetFromGround * 0.55)) + levelVerticalOffset,
             bottomZoneTop,
             groundY - minGroundClearance
         );
-        const secondaryOffset = Math.max(32, Math.round(maxOffsetFromGround * 0.25));
-        const secondPlatformY = clamp(
-            primaryPlatformY - secondaryOffset + 0,
-            bottomZoneTop,
-            groundY - minGroundClearance
+        const singleJumpHeight = Math.pow(Math.abs(hero.jumpVelocity), 2) / (2 * hero.gravity);
+        const hangTimeSingleJump = (Math.abs(hero.jumpVelocity) * 2) / hero.gravity;
+        // Keep vertical steps and horizontal gaps within the hero's reliable double-jump range.
+        const safeMaxVerticalStep = Math.max(
+            Math.round(singleJumpHeight * hero.maxJumps * 0.85),
+            60
+        );
+        const safeMaxHorizontalGap = Math.max(
+            Math.round(hero.speed * hangTimeSingleJump * hero.maxJumps * 0.8),
+            80
         );
 
         if (!heroSpriteMetrics) {
             applyHeroDimensions(hero.height);
         }
 
-        let firstPlatform = addPlatform(80, primaryPlatformY, 320, 24);
-        let lastPlatform = firstPlatform;
-        lastPlatform = addPlatform(520, secondPlatformY, 280, 24);
+        // Ten predefined platforms alternating between long and short variants.
+        const layoutPlan = [
+            { type: "long", width: 320, verticalOffset: 0 },
+            { type: "short", width: 220, verticalOffset: -60 },
+            { type: "long", width: 360, verticalOffset: 40 },
+            { type: "short", width: 200, verticalOffset: -80 },
+            { type: "long", width: 310, verticalOffset: 20 },
+            { type: "short", width: 210, verticalOffset: -50 },
+            { type: "long", width: 340, verticalOffset: 70 },
+            { type: "short", width: 190, verticalOffset: -30 },
+            { type: "long", width: 300, verticalOffset: 50 },
+            { type: "short", width: 230, verticalOffset: -70 },
+        ];
+        const gapPattern = [150, 140, 160, 150, 165, 150, 140, 155, 150];
+        let firstPlatform = null;
+        let lastPlatform = null;
 
-        const verticalAmplitude = Math.max(40, Math.round(maxOffsetFromGround * 0.35));
-        const maxAdditionalPlatforms = 6;
-        for (let index = 0; index < maxAdditionalPlatforms; index += 1) {
-            const gap = 120 + random() * 60;
-            const width = 220 + random() * 120;
-            const heightOffset = (random() - 0.5) * verticalAmplitude;
-
-            const nextX = lastPlatform.x + lastPlatform.width + gap;
-            if (nextX + width > world.width - 120) {
-                break;
+        for (let index = 0; index < layoutPlan.length; index += 1) {
+            const layout = layoutPlan[index];
+            let platformX = 80;
+            if (lastPlatform) {
+                const patternGap = gapPattern[(index - 1) % gapPattern.length];
+                const gap = clamp(patternGap, 80, safeMaxHorizontalGap);
+                platformX = lastPlatform.x + lastPlatform.width + gap;
             }
 
-            const minPlatformY = bottomZoneTop;
-            const maxPlatformY = groundY - minGroundClearance;
-            const targetY = clamp(lastPlatform.y + heightOffset, minPlatformY, maxPlatformY);
-            lastPlatform = addPlatform(nextX, targetY, width, 24);
+            const desiredY = clamp(
+                basePlatformY + layout.verticalOffset,
+                bottomZoneTop,
+                groundY - minGroundClearance
+            );
+            let platformY = desiredY;
+
+            if (lastPlatform) {
+                const previousY = lastPlatform.y;
+                if (Math.abs(desiredY - previousY) > safeMaxVerticalStep) {
+                    const direction = desiredY > previousY ? 1 : -1;
+                    platformY = clamp(
+                        previousY + direction * safeMaxVerticalStep,
+                        bottomZoneTop,
+                        groundY - minGroundClearance
+                    );
+                }
+            }
+
+            const platform = addPlatform(platformX, platformY, layout.width, 24, {
+                type: layout.type,
+            });
+
+            if (!firstPlatform) {
+                firstPlatform = platform;
+            }
+
+            lastPlatform = platform;
+        }
+
+        if (lastPlatform) {
+            const requiredWorldWidth =
+                lastPlatform.x + lastPlatform.width + Math.max(240, Math.round(viewportWidth * 0.5));
+            world.width = Math.max(world.width, requiredWorldWidth);
         }
 
         // Lower all platforms and coins by ~30% of viewport height, clamped to safe range near the ground

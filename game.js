@@ -67,11 +67,11 @@
 
     const hero = {
         x: 120,
-        y: world.height - floorOffset - 118,
+        y: world.height - floorOffset - 148,
         width: 62,
-        standHeight: 118,
-        crouchHeight: 78,
-        height: 118,
+        standHeight: 148,
+        crouchHeight: 100,
+        height: 148,
         vx: 0,
         vy: 0,
         speed: 220,
@@ -330,6 +330,8 @@
             y: platform.y - coinSize - coinPadding,
             size: coinSize,
             collected: false,
+            rotation: Math.random() * Math.PI * 2,
+            spinSpeed: 2.5 + Math.random() * 1.5,
         };
 
         coins.push(coin);
@@ -357,8 +359,19 @@
         updateLifeDisplay();
 
         const groundY = world.height - floorOffset;
-        const primaryPlatformY = groundY - 120;
-        const secondPlatformY = clamp(primaryPlatformY - 100, groundY - 220, groundY - 100);
+        const basePlatformOffset = Math.max(80, Math.round(viewportHeight * 0.2));
+        const minGroundClearance = Math.max(50, Math.round(basePlatformOffset * 0.45));
+        const primaryPlatformY = clamp(
+            groundY - basePlatformOffset,
+            hero.standHeight * 0.5,
+            groundY - minGroundClearance
+        );
+        const secondaryOffset = Math.max(40, Math.round(basePlatformOffset * 0.3));
+        const secondPlatformY = clamp(
+            primaryPlatformY - secondaryOffset,
+            primaryPlatformY - 160,
+            groundY - minGroundClearance
+        );
 
         if (!heroSpriteMetrics) {
             applyHeroDimensions(hero.height);
@@ -372,15 +385,15 @@
         for (let index = 0; index < maxAdditionalPlatforms; index += 1) {
             const gap = 120 + random() * 60;
             const width = 220 + random() * 120;
-            const heightOffset = (random() - 0.5) * 160;
+            const heightOffset = (random() - 0.5) * Math.max(120, basePlatformOffset * 0.8);
 
             const nextX = lastPlatform.x + lastPlatform.width + gap;
             if (nextX + width > world.width - 120) {
                 break;
             }
 
-            const minPlatformY = groundY - 240;
-            const maxPlatformY = groundY - 80;
+            const minPlatformY = Math.max(hero.standHeight * 0.5, groundY - basePlatformOffset - 180);
+            const maxPlatformY = groundY - minGroundClearance;
             const targetY = clamp(lastPlatform.y + heightOffset, minPlatformY, maxPlatformY);
             lastPlatform = addPlatform(nextX, targetY, width, 24);
         }
@@ -572,18 +585,41 @@
 
         handleHeroFall();
 
-        updateCoins();
+        updateCoins(delta);
         updateCamera();
         updateAnimation(delta);
         inputState.jumpRequested = false;
     }
 
-    function updateCoins() {
+    function updateCoins(delta) {
         const heroRight = hero.x + hero.width;
         const heroBottom = hero.y + hero.height;
 
         coins.forEach((coin) => {
             if (coin.collected) {
+                return;
+            }
+
+            coin.rotation = (coin.rotation + coin.spinSpeed * delta) % (Math.PI * 2);
+
+            const coinRight = coin.x + coin.size;
+            const coinBottom = coin.y + coin.size;
+
+            const isOverlapping =
+                hero.x < coinRight &&
+                heroRight > coin.x &&
+                hero.y < coinBottom &&
+                heroBottom > coin.y;
+
+            if (isOverlapping) {
+                coin.collected = true;
+                gameState.coinsCollected += 1;
+                updateCoinDisplay();
+            }
+        });
+    }
+
+*** End Patch
                 return;
             }
 
@@ -721,16 +757,42 @@
                 return;
             }
 
+            const rotation = coin.rotation ?? 0;
+            const spinCos = Math.cos(rotation);
+            const spinScale = 0.6 + 0.35 * Math.abs(spinCos);
+            const bobOffset = Math.sin(rotation * 2) * 2;
             const centerX = coin.x + coin.size / 2;
-            const centerY = coin.y + coin.size / 2;
+            const centerY = coin.y + coin.size / 2 + bobOffset;
+            const radius = coin.size / 2;
+            const frontColor = spinCos >= 0 ? "#ffd86b" : "#e0b652";
+            const highlightColor = spinCos >= 0 ? "#fff3b0" : "#f0d37a";
+            const rimColor = "#d48b2c";
+
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            ctx.scale(spinScale, 1);
+
+            const gradient = ctx.createRadialGradient(0, 0, radius * 0.15, 0, 0, radius);
+            gradient.addColorStop(0, highlightColor);
+            gradient.addColorStop(0.65, frontColor);
+            gradient.addColorStop(1, rimColor);
 
             ctx.beginPath();
-            ctx.arc(centerX, centerY, coin.size / 2, 0, Math.PI * 2);
-            ctx.fillStyle = "#ffd84d";
+            ctx.arc(0, 0, radius, 0, Math.PI * 2);
+            ctx.fillStyle = gradient;
             ctx.fill();
-            ctx.strokeStyle = "#f7c531";
-            ctx.lineWidth = 2;
+
+            ctx.lineWidth = 2 / Math.max(spinScale, 0.4);
+            ctx.strokeStyle = "rgba(212, 139, 44, 0.9)";
             ctx.stroke();
+
+            ctx.beginPath();
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.35)";
+            ctx.lineWidth = 1.2 / Math.max(spinScale, 0.4);
+            ctx.ellipse(-radius * 0.2, 0, radius * 0.6, radius * 0.9, 0, -Math.PI / 3, Math.PI / 3);
+            ctx.stroke();
+
+            ctx.restore();
         });
 
         const frame = heroFrames[hero.animFrame];

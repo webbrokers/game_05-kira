@@ -17,6 +17,118 @@
     const objectUrls = [];
     let shouldPropagateFullscreen = false;
     let loaderHidden = false;
+    const FULLSCREEN_RETRY_DELAYS = [32, 260, 1000];
+    const FULLSCREEN_EVENTS = ["pointerdown", "touchstart", "keydown"];
+    let fullscreenIntent = false;
+    let fullscreenFallbackCleanup = null;
+    let fullscreenMonitorBound = false;
+
+    function cleanupFullscreenFallback() {
+        if (typeof fullscreenFallbackCleanup !== "function") {
+            return;
+        }
+        fullscreenFallbackCleanup();
+        fullscreenFallbackCleanup = null;
+    }
+
+    function ensureFullscreenMonitor() {
+        if (fullscreenMonitorBound) {
+            return;
+        }
+        const handleChange = () => {
+            if (document.fullscreenElement) {
+                fullscreenIntent = false;
+                cleanupFullscreenFallback();
+            }
+        };
+        document.addEventListener("fullscreenchange", handleChange);
+        document.addEventListener("webkitfullscreenchange", handleChange);
+        fullscreenMonitorBound = true;
+    }
+
+    function attemptFullscreenRequest() {
+        if (!fullscreenIntent || document.fullscreenElement) {
+            return false;
+        }
+        try {
+            const root = document.documentElement;
+            const method =
+                root.requestFullscreen ||
+                root.webkitRequestFullscreen ||
+                root.msRequestFullscreen;
+            if (typeof method !== "function") {
+                return false;
+            }
+            const result = method.call(root);
+            const handleSuccess = () => {
+                fullscreenIntent = false;
+                cleanupFullscreenFallback();
+            };
+            if (result && typeof result.then === "function") {
+                result.then(handleSuccess).catch(() => {});
+            } else {
+                window.setTimeout(() => {
+                    if (document.fullscreenElement) {
+                        handleSuccess();
+                    }
+                }, 120);
+            }
+            return true;
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function ensureFullscreenFallback() {
+        if (!fullscreenIntent || fullscreenFallbackCleanup) {
+            return;
+        }
+
+        const handler = () => {
+            attemptFullscreenRequest();
+        };
+
+        FULLSCREEN_EVENTS.forEach((eventName) => {
+            window.addEventListener(eventName, handler, true);
+        });
+
+        const timeoutIds = FULLSCREEN_RETRY_DELAYS.map((delay) =>
+            window.setTimeout(() => {
+                attemptFullscreenRequest();
+            }, delay),
+        );
+
+        window.addEventListener(
+            "pageshow",
+            () => {
+                attemptFullscreenRequest();
+            },
+            { once: true },
+        );
+        window.addEventListener(
+            "load",
+            () => {
+                attemptFullscreenRequest();
+            },
+            { once: true },
+        );
+
+        fullscreenFallbackCleanup = () => {
+            timeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
+            FULLSCREEN_EVENTS.forEach((eventName) => {
+                window.removeEventListener(eventName, handler, true);
+            });
+        };
+    }
+
+    function triggerFullscreenRequest() {
+        if (!fullscreenIntent || document.fullscreenElement) {
+            return;
+        }
+        ensureFullscreenMonitor();
+        ensureFullscreenFallback();
+        attemptFullscreenRequest();
+    }
 
     function stopMenuMusic() {
         try {
@@ -65,6 +177,7 @@
             if (window.sessionStorage?.getItem(FULLSCREEN_FLAG_KEY) === "1") {
                 shouldRequest = true;
                 propagate = true;
+                window.sessionStorage.removeItem(FULLSCREEN_FLAG_KEY);
             }
         } catch (_) {
             // Ignore storage errors.
@@ -96,6 +209,7 @@
         }
 
         shouldPropagateFullscreen = propagate || shouldRequest;
+        fullscreenIntent = shouldRequest;
         return shouldRequest;
     }
 
@@ -103,21 +217,7 @@
         if (!detectFullscreenIntent()) {
             return;
         }
-        try {
-            const root = document.documentElement;
-            const method =
-                root.requestFullscreen ||
-                root.webkitRequestFullscreen ||
-                root.msRequestFullscreen;
-            if (typeof method === "function") {
-                const result = method.call(root);
-                if (result && typeof result.catch === "function") {
-                    result.catch(() => {});
-                }
-            }
-        } catch (_) {
-            // Ignore fullscreen errors to avoid blocking flow.
-        }
+        triggerFullscreenRequest();
     }
 
     async function preloadAsset(definition) {
@@ -172,6 +272,10 @@
                 unbind();
                 return;
             }
+            if (!document.fullscreenElement && shouldPropagateFullscreen) {
+                fullscreenIntent = true;
+                triggerFullscreenRequest();
+            }
             safePlay(introVideo);
         };
 
@@ -205,6 +309,10 @@
             introVideo.classList.remove("intro-video--hidden");
             safePlay(introVideo);
             bindIntroPlaybackRetry();
+            if (!document.fullscreenElement && shouldPropagateFullscreen) {
+                fullscreenIntent = true;
+                triggerFullscreenRequest();
+            }
         };
 
         if (introVideo.readyState >= 2) {
@@ -238,6 +346,10 @@
             navigateToPlay();
             return;
         }
+        if (!document.fullscreenElement && shouldPropagateFullscreen) {
+            fullscreenIntent = true;
+            triggerFullscreenRequest();
+        }
         heroVideo.classList.remove("intro-video--hidden");
         safePlay(heroVideo);
     }
@@ -253,10 +365,15 @@
         if (poster) {
             poster.hidden = true;
         }
+        if (!document.fullscreenElement && shouldPropagateFullscreen) {
+            fullscreenIntent = true;
+            triggerFullscreenRequest();
+        }
         startHeroVideo();
     }
 
     function releaseObjectUrls() {
+        cleanupFullscreenFallback();
         objectUrls.forEach((url) => {
             try {
                 URL.revokeObjectURL(url);

@@ -1,6 +1,7 @@
 (() => {
     const SOUND_DEFINITIONS = {
         menuMusic: { src: "audio/new/menu_music_01.mp3", type: "music", loop: true, volume: 0.35 },
+        menuMusicSoft: { src: "audio/new/menu_music_01.mp3", type: "music", loop: true, volume: 0.245 },
     };
 
     const sounds = new Map();
@@ -159,6 +160,7 @@
         ensureUnlock: ensureUnlockListeners,
         unlock,
         playMenuMusic: () => playMusic("menuMusic"),
+        playMenuMusicSoft: () => playMusic("menuMusicSoft"),
         playGameMusic: () => playMusic("gameMusic"),
         stopMusic,
         setRunningLoop: (active) => setLoopState("runLoop", active),

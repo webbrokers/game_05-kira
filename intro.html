@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game 05 Kira — Вступление</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="intro-page">
+    <div class="intro-stage" id="introStage">
+        <div class="intro-loader" id="introLoader" role="status" aria-live="polite">
+            <div class="intro-loader__content">
+                <p class="intro-loader__label">Готовим приключение...</p>
+                <div class="intro-progress">
+                    <div class="intro-progress__bar" id="introProgressBar" style="width: 0%;"></div>
+                </div>
+                <p class="intro-progress__value" id="introProgressValue">0%</p>
+            </div>
+        </div>
+
+        <video
+            class="intro-video intro-video--hidden"
+            id="introVideo"
+            playsinline
+            preload="auto"
+        ></video>
+
+        <div class="intro-poster" id="introPoster" hidden>
+            <img class="intro-poster__image" src="img/go-go-go.jpg" alt="Go! Go! Go!">
+            <button class="intro-call-button" type="button" id="callHeroButton">Позвать героя</button>
+        </div>
+
+        <video
+            class="intro-video intro-video--hidden"
+            id="heroVideo"
+            playsinline
+            preload="auto"
+        ></video>
+    </div>
+    <script src="audio.js"></script>
+    <script src="intro.js"></script>
+</body>
+</html>

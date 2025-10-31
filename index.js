@@ -114,7 +114,7 @@
             // Try to enter fullscreen immediately on user gesture (best effort)
             requestAnyFullscreen();
 
-            const targetHref = playButton.dataset.target || "play.html";
+            const targetHref = playButton.dataset.target || "intro.html";
             let targetUrl = targetHref;
             try {
                 const url = new URL(targetHref, window.location.href);

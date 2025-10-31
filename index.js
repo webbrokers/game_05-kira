@@ -3,6 +3,8 @@
     const orientationOverlay = document.getElementById("orientationOverlay");
     const coarsePointerMedia =
         typeof window.matchMedia === "function" ? window.matchMedia("(pointer: coarse)") : null;
+    const audio = window.gameAudio || null;
+    const FULLSCREEN_FLAG_KEY = "game05kira_fullscreen_requested";
     let orientationBlocked = false;
 
     if (orientationOverlay) {
@@ -54,23 +56,6 @@
         }
     }
 
-    function requestFullscreen(target) {
-        if (!target) {
-            return null;
-        }
-
-        const method =
-            target.requestFullscreen ||
-            target.webkitRequestFullscreen ||
-            target.msRequestFullscreen;
-
-        if (typeof method === "function") {
-            return method.call(target);
-        }
-
-        return null;
-    }
-
     function bindStartButton() {
         if (!playLink) {
             return;
@@ -78,41 +63,19 @@
 
         playLink.addEventListener("click", (event) => {
             event.preventDefault();
+            audio?.playMenuClick();
+            audio?.stopMusic();
 
-            const targetHref = playLink.getAttribute("href") || "play.html";
-            const proceedToGame = () => {
-                window.location.href = targetHref;
-            };
-
-            const fullscreenTarget = document.documentElement;
-            if (fullscreenTarget) {
+            if (typeof window !== "undefined" && window.sessionStorage) {
                 try {
-                    const result = requestFullscreen(fullscreenTarget);
-                    if (result && typeof result.then === "function") {
-                        result
-                            .then(() => {
-                                attemptLandscapeLock();
-                                updateOrientationOverlay();
-                                proceedToGame();
-                            })
-                            .catch(() => {
-                                proceedToGame();
-                            });
-                        return;
-                    }
-
-                    if (result !== null && result !== undefined) {
-                        attemptLandscapeLock();
-                        updateOrientationOverlay();
-                        proceedToGame();
-                        return;
-                    }
+                    window.sessionStorage.setItem(FULLSCREEN_FLAG_KEY, "1");
                 } catch (err) {
-                    // Ignore errors and fall through to navigation.
+                    // Ignore storage errors (e.g., private mode).
                 }
             }
 
-            proceedToGame();
+            const targetHref = playLink.getAttribute("href") || "play.html";
+            window.location.href = targetHref;
         });
     }
 
@@ -126,12 +89,18 @@
             }
         }
 
-        window.addEventListener("resize", updateOrientationOverlay);
-        window.addEventListener("orientationchange", updateOrientationOverlay);
-        document.addEventListener("fullscreenchange", updateOrientationOverlay);
+        window.addEventListener("resize", () => {
+            updateOrientationOverlay();
+        });
+        window.addEventListener("orientationchange", () => {
+            updateOrientationOverlay();
+            attemptLandscapeLock();
+        });
     }
 
     bindStartButton();
     bindOrientationListeners();
     updateOrientationOverlay();
+    audio?.playMenuMusic();
+    attemptLandscapeLock();
 })();

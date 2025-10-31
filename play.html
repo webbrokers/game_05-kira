@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Game 05 Kira — Игра</title>
+    <title>Game 05 Kira &#8212; &#1048;&#1075;&#1088;&#1072;</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body class="play-page">
@@ -11,40 +11,40 @@
         <canvas class="game-canvas" id="gameCanvas" width="960" height="540"></canvas>
 
         <div class="game-topbar">
-            <button class="topbar-button topbar-button--menu" data-action="open-menu">Меню</button>
+            <button class="topbar-button topbar-button--menu" data-action="open-menu">&#1052;&#1077;&#1085;&#1102;</button>
             <div class="hud hud--coins" id="coinDisplay" aria-live="polite">
-                <span class="hud-label">Монеты</span>
+                <span class="hud-label">&#1052;&#1086;&#1085;&#1077;&#1090;&#1099;</span>
                 <span class="hud-value" id="coinCountValue">0</span>
             </div>
         </div>
 
-        <div class="hud hud--lives" id="lifeDisplay" aria-live="polite" aria-label="Жизни"></div>
+        <div class="hud hud--lives" id="lifeDisplay" aria-live="polite" aria-label="&#1046;&#1080;&#1079;&#1085;&#1080;"></div>
 
         <div class="control-pad control-pad--vertical">
-            <button class="control-button control-button--arrow control-button--up" data-action="jump" aria-label="Прыжок"></button>
-            <button class="control-button control-button--arrow control-button--down" data-action="crouch" aria-label="Присесть"></button>
+            <button class="control-button control-button--arrow control-button--up" data-action="jump" aria-label="&#1055;&#1088;&#1099;&#1078;&#1086;&#1082;"></button>
+            <button class="control-button control-button--arrow control-button--down" data-action="crouch" aria-label="&#1055;&#1088;&#1080;&#1089;&#1077;&#1089;&#1090;&#1100;"></button>
         </div>
 
         <div class="control-pad control-pad--horizontal">
-            <button class="control-button control-button--arrow control-button--left" data-action="move-left" aria-label="Движение влево"></button>
-            <button class="control-button control-button--arrow control-button--right" data-action="move-right" aria-label="Движение вправо"></button>
+            <button class="control-button control-button--arrow control-button--left" data-action="move-left" aria-label="&#1044;&#1074;&#1080;&#1078;&#1077;&#1085;&#1080;&#1077; &#1074;&#1083;&#1077;&#1074;&#1086;"></button>
+            <button class="control-button control-button--arrow control-button--right" data-action="move-right" aria-label="&#1044;&#1074;&#1080;&#1078;&#1077;&#1085;&#1080;&#1077; &#1074;&#1087;&#1088;&#1072;&#1074;&#1086;"></button>
         </div>
 
         <div class="overlay overlay--game-over" id="gameOverOverlay" hidden aria-hidden="true">
             <div class="overlay-card" role="dialog" aria-modal="true" aria-labelledby="gameOverTitle">
-                <h2 class="overlay-title" id="gameOverTitle">Игра окончена</h2>
-                <p class="overlay-text">Хотите попробовать ещё раз или вернуться в меню?</p>
+                <h2 class="overlay-title" id="gameOverTitle">&#1048;&#1075;&#1088;&#1072; &#1086;&#1082;&#1086;&#1085;&#1095;&#1077;&#1085;&#1072;</h2>
+                <p class="overlay-text">&#1061;&#1086;&#1090;&#1080;&#1090;&#1077; &#1087;&#1086;&#1087;&#1088;&#1086;&#1073;&#1086;&#1074;&#1072;&#1090;&#1100; &#1105;&#1097;&#1105; &#1088;&#1072;&#1079; &#1080;&#1083;&#1080; &#1074;&#1077;&#1088;&#1085;&#1091;&#1090;&#1100;&#1089;&#1103; &#1074; &#1084;&#1077;&#1085;&#1102;?</p>
                 <div class="overlay-actions">
-                    <button class="overlay-button" data-action="restart-game">Ещё раз сыграть</button>
-                    <button class="overlay-button overlay-button--secondary" data-action="exit-to-menu">Выйти в меню</button>
+                    <button class="overlay-button" data-action="restart-game">&#1045;&#1097;&#1105; &#1088;&#1072;&#1079; &#1089;&#1099;&#1075;&#1088;&#1072;&#1090;&#1100;</button>
+                    <button class="overlay-button overlay-button--secondary" data-action="exit-to-menu">&#1042;&#1099;&#1081;&#1090;&#1080; &#1074; &#1084;&#1077;&#1085;&#1102;</button>
                 </div>
             </div>
         </div>
 
         <div class="overlay overlay--orientation" id="orientationOverlay" hidden aria-hidden="true">
             <div class="overlay-card" role="alert" aria-live="assertive">
-                <h2 class="overlay-title">Поверните устройство</h2>
-                <p class="overlay-text">Пожалуйста, поверните устройство горизонтально и включите игру в полноэкранном режиме.</p>
+                <h2 class="overlay-title">&#1055;&#1086;&#1074;&#1077;&#1088;&#1085;&#1080;&#1090;&#1077; &#1091;&#1089;&#1090;&#1088;&#1086;&#1081;&#1089;&#1090;&#1074;&#1086;</h2>
+                <p class="overlay-text">&#1055;&#1086;&#1078;&#1072;&#1083;&#1091;&#1081;&#1089;&#1090;&#1072;, &#1087;&#1086;&#1074;&#1077;&#1088;&#1085;&#1080;&#1090;&#1077; &#1091;&#1089;&#1090;&#1088;&#1086;&#1081;&#1089;&#1090;&#1074;&#1086; &#1075;&#1086;&#1088;&#1080;&#1079;&#1086;&#1085;&#1090;&#1072;&#1083;&#1100;&#1085;&#1086; &#1080; &#1074;&#1082;&#1083;&#1102;&#1095;&#1080;&#1090;&#1077; &#1080;&#1075;&#1088;&#1091; &#1074; &#1087;&#1086;&#1083;&#1085;&#1086;&#1101;&#1082;&#1088;&#1072;&#1085;&#1085;&#1086;&#1084; &#1088;&#1077;&#1078;&#1080;&#1084;&#1077;.</p>
             </div>
         </div>
     </div>

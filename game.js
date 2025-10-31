@@ -11,6 +11,8 @@
     const menuButton = document.querySelector('[data-action="open-menu"]');
     const coarsePointerMedia =
         typeof window.matchMedia === "function" ? window.matchMedia("(pointer: coarse)") : null;
+    const audio = window.gameAudio || null;
+    const FULLSCREEN_FLAG_KEY = "game05kira_fullscreen_requested";
 
     if (gameOverOverlay) {
         gameOverOverlay.setAttribute("aria-hidden", "true");
@@ -96,6 +98,8 @@
         animFrameDuration: 0.055,
     };
 
+    let wasHeroRunning = false;
+
     const inputState = {
         left: false,
         right: false,
@@ -126,10 +130,12 @@
                 updateCoinDisplay();
                 updateLifeDisplay();
                 updateFallThreshold();
+                audio?.playGameMusic();
+                audio?.setRunningLoop(false);
                 requestAnimationFrame(loop);
             })
             .catch((err) => {
-                console.error("Не удалось загрузить спрайты героя", err);
+                console.error("\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u0441\u043f\u0440\u0430\u0439\u0442\u044b \u0433\u0435\u0440\u043e\u044f", err);
             });
     }
 
@@ -163,7 +169,7 @@
         }
 
         lifeDisplayElement.innerHTML = hearts.join("");
-        lifeDisplayElement.setAttribute("aria-label", `Жизни: ${gameState.lives}`);
+        lifeDisplayElement.setAttribute("aria-label", `\u0416\u0438\u0437\u043d\u0438: ${gameState.lives}`);
     }
 
     function hasCoarsePointer() {
@@ -187,6 +193,7 @@
             gameOverOverlay.setAttribute("aria-hidden", String(!isGameOver));
         }
         if (isGameOver) {
+            audio?.setRunningLoop(false);
             resetInputState();
             restartButton?.focus?.();
         }
@@ -238,6 +245,91 @@
         } else {
             attemptLandscapeLock();
         }
+    }
+
+    function requestStageFullscreen() {
+        if (!stage) {
+            return null;
+        }
+
+        const method =
+            stage.requestFullscreen ||
+            stage.webkitRequestFullscreen ||
+            stage.msRequestFullscreen;
+
+        if (typeof method === "function") {
+            try {
+                return method.call(stage);
+            } catch (err) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    function handleFullscreenResult(result) {
+        if (result && typeof result.then === "function") {
+            result
+                .then(() => {
+                    attemptLandscapeLock();
+                    updateOrientationBlock();
+                })
+                .catch(() => {});
+        } else if (result !== null && result !== undefined) {
+            attemptLandscapeLock();
+            updateOrientationBlock();
+        }
+    }
+
+    function enterFullscreenIfRequested() {
+        if (typeof window === "undefined") {
+            return;
+        }
+
+        let shouldRequest = false;
+        try {
+            shouldRequest =
+                window.sessionStorage?.getItem(FULLSCREEN_FLAG_KEY) === "1";
+            if (shouldRequest) {
+                window.sessionStorage.removeItem(FULLSCREEN_FLAG_KEY);
+            }
+        } catch (err) {
+            shouldRequest = false;
+        }
+
+        if (!shouldRequest) {
+            return;
+        }
+
+        const result = requestStageFullscreen();
+        if (result) {
+            handleFullscreenResult(result);
+        } else {
+            attemptLandscapeLock();
+            updateOrientationBlock();
+        }
+    }
+
+    function bindFullscreenFallback() {
+        if (!stage) {
+            return;
+        }
+
+        const handler = () => {
+            if (!document.fullscreenElement) {
+                const result = requestStageFullscreen();
+                if (result) {
+                    handleFullscreenResult(result);
+                } else {
+                    attemptLandscapeLock();
+                    updateOrientationBlock();
+                }
+            }
+            stage.removeEventListener("pointerdown", handler);
+        };
+
+        stage.addEventListener("pointerdown", handler);
     }
 
     function computeSpriteMetrics(frames) {
@@ -466,6 +558,7 @@
         }
         const heroBottom = hero.y + hero.height;
         if (heroBottom > gameState.fallThreshold) {
+            audio?.playFall();
             handleHeroLifeLoss();
         }
     }
@@ -529,6 +622,7 @@
 
         let nextX = hero.x + hero.vx * delta;
         let nextY = hero.y + hero.vy * delta;
+        const wasGrounded = hero.isGrounded;
         hero.isGrounded = false;
         hero.groundY = null;
 
@@ -567,6 +661,10 @@
 
         hero.x = nextX;
         hero.y = nextY;
+
+        if (!wasGrounded && hero.isGrounded) {
+            audio?.playLand();
+        }
 
         // Keep inside horizontal bounds of the world
         if (hero.x < 0) hero.x = 0;
@@ -615,6 +713,7 @@
                 coin.collected = true;
                 gameState.coinsCollected += 1;
                 updateCoinDisplay();
+                audio?.playCoin();
             }
         });
     }
@@ -688,6 +787,7 @@
             hero.vy = hero.jumpVelocity;
             hero.isGrounded = false;
             hero.jumpCount += 1;
+            audio?.playJump();
         }
 
         hero.isCrouching = inputState.crouch && hero.isGrounded;
@@ -696,6 +796,11 @@
     function updateAnimation(delta) {
         const moving = Math.abs(hero.vx) > 1;
         const shouldRun = moving && hero.isGrounded && !hero.isCrouching;
+
+        if (audio && shouldRun !== wasHeroRunning) {
+            audio.setRunningLoop(shouldRun);
+            wasHeroRunning = shouldRun;
+        }
 
         if (shouldRun) {
             hero.animTimer += delta;
@@ -789,8 +894,17 @@
             ctx.beginPath();
             ctx.strokeStyle = "rgba(255, 255, 255, 0.35)";
             ctx.lineWidth = 1.2 / Math.max(spinScale, 0.4);
-            ctx.ellipse(-radius * 0.2, 0, radius * 0.6, radius * 0.9, 0, -Math.PI / 3, Math.PI / 3);
-            ctx.stroke();
+            if (typeof ctx.ellipse === "function") {
+                ctx.ellipse(-radius * 0.2, 0, radius * 0.6, radius * 0.9, 0, -Math.PI / 3, Math.PI / 3);
+                ctx.stroke();
+            } else {
+                ctx.save();
+                ctx.translate(-radius * 0.2, 0);
+                ctx.scale(0.6, 0.9);
+                ctx.arc(0, 0, radius, -Math.PI / 3, Math.PI / 3);
+                ctx.restore();
+                ctx.stroke();
+            }
 
             ctx.restore();
         });
@@ -949,6 +1063,9 @@
         }
 
         menuButton.addEventListener("click", () => {
+            audio?.playMenuClick();
+            audio?.stopMusic();
+            audio?.setRunningLoop(false);
             resetInputState();
             if (document.fullscreenElement) {
                 document.exitFullscreen?.();
@@ -960,6 +1077,8 @@
     function bindGameMenus() {
         if (restartButton) {
             restartButton.addEventListener("click", () => {
+                audio?.playMenuClick();
+                audio?.setRunningLoop(false);
                 setGameOverState(false);
                 initializeWorldContent(true);
                 resetInputState();
@@ -969,6 +1088,9 @@
 
         if (exitToMenuButton) {
             exitToMenuButton.addEventListener("click", () => {
+                audio?.playMenuClick();
+                audio?.stopMusic();
+                audio?.setRunningLoop(false);
                 resetInputState();
                 if (document.fullscreenElement) {
                     document.exitFullscreen?.();
@@ -1047,5 +1169,9 @@
     bindGameMenus();
     bindOrientationListeners();
     bindResizeObserver();
+    enterFullscreenIfRequested();
+    bindFullscreenFallback();
     init();
 })();
+
+

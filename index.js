@@ -1,5 +1,6 @@
 (() => {
     const playLink = document.querySelector('[data-action="start-game"]');
+    const fullscreenButton = document.querySelector('[data-action="enter-fullscreen"]');
     const orientationOverlay = document.getElementById("orientationOverlay");
     const coarsePointerMedia =
         typeof window.matchMedia === "function" ? window.matchMedia("(pointer: coarse)") : null;
@@ -74,6 +75,19 @@
         }
     }
 
+    function flagFullscreenIntent() {
+        if (typeof window === "undefined") {
+            return;
+        }
+        try {
+            if (window.sessionStorage) {
+                window.sessionStorage.setItem(FULLSCREEN_FLAG_KEY, "1");
+            }
+        } catch (_) {
+            // Ignore storage errors (e.g., private mode).
+        }
+    }
+
     function bindStartButton() {
         if (!playLink) {
             return;
@@ -84,13 +98,7 @@
             audio?.playMenuClick();
             audio?.stopMusic();
 
-            if (typeof window !== "undefined" && window.sessionStorage) {
-                try {
-                    window.sessionStorage.setItem(FULLSCREEN_FLAG_KEY, "1");
-                } catch (err) {
-                    // Ignore storage errors (e.g., private mode).
-                }
-            }
+            flagFullscreenIntent();
 
             // Try to enter fullscreen immediately on user gesture (best effort)
             requestAnyFullscreen();
@@ -107,6 +115,20 @@
             }
 
             window.location.href = targetUrl;
+        });
+    }
+
+    function bindFullscreenButton() {
+        if (!fullscreenButton) {
+            return;
+        }
+
+        fullscreenButton.addEventListener("click", (event) => {
+            event.preventDefault();
+            audio?.playMenuClick();
+            flagFullscreenIntent();
+            requestAnyFullscreen();
+            attemptLandscapeLock();
         });
     }
 
@@ -129,6 +151,7 @@
         });
     }
 
+    bindFullscreenButton();
     bindStartButton();
     bindOrientationListeners();
     updateOrientationOverlay();

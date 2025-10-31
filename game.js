@@ -29,16 +29,12 @@
     };
 
     const coinAnimation = {
-        image: null,
-        columns: 3,
-        rows: 2,
-        frameWidth: 0,
-        frameHeight: 0,
-        totalFrames: 0,
-        scale: 1 / 3,
-        frameDuration: 0.08,
-        drawWidth: 0,
-        drawHeight: 0,
+        width: 48,
+        height: 48,
+        spinSpeed: Math.PI * 1.6,
+        bobAmplitude: 6,
+        bobSpeedBase: 3.2,
+        bobSpeedVariance: 1.4,
     };
 
     const heroFrameSources = Array.from({ length: 11 }, (_, index) => {
@@ -55,6 +51,11 @@
     let viewportHeight = canvas.height;
     let deviceScale = window.devicePixelRatio || 1;
     let heroSpriteMetrics = null;
+
+    const HERO_SCALE = 0.8;
+    const HERO_STAND_HEIGHT = 222 * HERO_SCALE;
+    const HERO_CROUCH_HEIGHT = 150 * HERO_SCALE;
+    const HERO_BASE_WIDTH = 93 * HERO_SCALE;
 
     const world = {
         width: canvas.width * 3,
@@ -85,11 +86,11 @@
 
     const hero = {
         x: 120,
-        y: world.height - floorOffset - 222,
-        width: 93,
-        standHeight: 222,
-        crouchHeight: 150,
-        height: 222,
+        y: world.height - floorOffset - HERO_STAND_HEIGHT,
+        width: HERO_BASE_WIDTH,
+        standHeight: HERO_STAND_HEIGHT,
+        crouchHeight: HERO_CROUCH_HEIGHT,
+        height: HERO_STAND_HEIGHT,
         vx: 0,
         vy: 0,
         speed: 220,
@@ -134,40 +135,12 @@
         });
     }
 
-    function configureCoinAnimation(image) {
-        if (!image) {
-            return;
-        }
-
-        const naturalWidth = image.naturalWidth || image.width || 0;
-        const naturalHeight = image.naturalHeight || image.height || 0;
-
-        coinAnimation.image = image;
-        coinAnimation.frameWidth = naturalWidth / coinAnimation.columns;
-        coinAnimation.frameHeight = naturalHeight / coinAnimation.rows;
-        coinAnimation.totalFrames = coinAnimation.columns * coinAnimation.rows;
-        coinAnimation.drawWidth = coinAnimation.frameWidth * coinAnimation.scale;
-        coinAnimation.drawHeight = coinAnimation.frameHeight * coinAnimation.scale;
-    }
-
     function getCoinDrawWidth() {
-        if (coinAnimation.drawWidth) {
-            return coinAnimation.drawWidth;
-        }
-        if (coinAnimation.frameWidth) {
-            return coinAnimation.frameWidth * (coinAnimation.scale || 1);
-        }
-        return 48;
+        return coinAnimation.width || 48;
     }
 
     function getCoinDrawHeight() {
-        if (coinAnimation.drawHeight) {
-            return coinAnimation.drawHeight;
-        }
-        if (coinAnimation.frameHeight) {
-            return coinAnimation.frameHeight * (coinAnimation.scale || 1);
-        }
-        return 48;
+        return coinAnimation.height || 48;
     }
 
     function init() {
@@ -175,13 +148,11 @@
         Promise.all([
             Promise.all(heroPromises),
             loadImage("img/background_02.png"),
-            loadImage("img/coin-movie.png"),
         ])
-            .then(([heroImages, backgroundImage, coinImage]) => {
+            .then(([heroImages, backgroundImage]) => {
                 background.image = backgroundImage;
                 heroFrames.push(...heroImages);
                 heroSpriteMetrics = computeSpriteMetrics(heroFrames);
-                configureCoinAnimation(coinImage);
                 applyHeroDimensions(hero.height);
                 initializeWorldContent(true);
                 updateCoinDisplay();
@@ -593,9 +564,8 @@
     function addCoinForPlatform(platform) {
         const coinWidth = getCoinDrawWidth();
         const coinHeight = getCoinDrawHeight();
-        const frameDuration = coinAnimation.frameDuration || 0.08;
-        const totalFrames = Math.max(1, coinAnimation.totalFrames || 1);
         const baseY = platform.y - coinHeight - coinPadding;
+        const spinSpeed = coinAnimation.spinSpeed || (Math.PI * 1.6);
         const coin = {
             x: platform.x + platform.width / 2 - coinWidth / 2,
             y: baseY,
@@ -603,11 +573,13 @@
             width: coinWidth,
             height: coinHeight,
             collected: false,
-            animFrame: Math.floor(Math.random() * totalFrames),
-            animTimer: Math.random() * frameDuration,
+            rotation: Math.random() * Math.PI * 2,
+            rotationSpeed: spinSpeed * (0.85 + Math.random() * 0.3),
             bobTimer: Math.random() * Math.PI * 2,
-            bobSpeed: 3.2 + Math.random() * 1.4,
-            bobAmplitude: 6,
+            bobSpeed:
+                (coinAnimation.bobSpeedBase || 1) +
+                Math.random() * (coinAnimation.bobSpeedVariance || 0),
+            bobAmplitude: coinAnimation.bobAmplitude ?? 6,
         };
 
         coins.push(coin);
@@ -904,21 +876,14 @@
 
         const heroRight = hero.x + hero.width;
         const heroBottom = hero.y + hero.height;
-        const frameDuration = coinAnimation.frameDuration || 0.08;
-        const totalFrames = Math.max(1, coinAnimation.totalFrames || 1);
 
         coins.forEach((coin) => {
             if (coin.collected) {
                 return;
             }
 
-            coin.animTimer += delta;
-            if (coin.animTimer >= frameDuration) {
-                const framesToAdvance = Math.floor(coin.animTimer / frameDuration);
-                coin.animFrame = (coin.animFrame + framesToAdvance) % totalFrames;
-                coin.animTimer -= frameDuration * framesToAdvance;
-            }
-
+            const rotationSpeed = coin.rotationSpeed || coinAnimation.spinSpeed || (Math.PI * 1.6);
+            coin.rotation = (coin.rotation + delta * rotationSpeed) % (Math.PI * 2);
             const bobSpeed = coin.bobSpeed || 1;
             coin.bobTimer = (coin.bobTimer + delta * bobSpeed) % (Math.PI * 2);
 
@@ -1059,35 +1024,60 @@
         });
 
         // Coins
-        if (coinAnimation.image) {
-            const totalFrames = Math.max(1, coinAnimation.totalFrames || 1);
-            coins.forEach((coin) => {
-                if (coin.collected) {
-                    return;
-                }
+        coins.forEach((coin) => {
+            if (coin.collected) {
+                return;
+            }
 
-                const frameIndex = coin.animFrame % totalFrames;
-                const column = frameIndex % coinAnimation.columns;
-                const row = Math.floor(frameIndex / coinAnimation.columns);
-                const sourceX = column * coinAnimation.frameWidth;
-                const sourceY = row * coinAnimation.frameHeight;
-                const bobOffset = Math.sin(coin.bobTimer) * (coin.bobAmplitude ?? 6);
-                const drawX = coin.x;
-                const drawY = (coin.baseY ?? coin.y) + bobOffset;
+            const bobOffset =
+                Math.sin(coin.bobTimer) *
+                (coin.bobAmplitude ?? coinAnimation.bobAmplitude ?? 6);
+            const centerX = coin.x + coin.width / 2;
+            const centerY = (coin.baseY ?? coin.y) + bobOffset + coin.height / 2;
+            const rotation = coin.rotation ?? 0;
+            const horizontalScale = 0.3 + 0.7 * Math.abs(Math.cos(rotation));
+            const radius = Math.min(coin.width, coin.height) / 2;
 
-                ctx.drawImage(
-                    coinAnimation.image,
-                    sourceX,
-                    sourceY,
-                    coinAnimation.frameWidth,
-                    coinAnimation.frameHeight,
-                    drawX,
-                    drawY,
-                    coin.width,
-                    coin.height
-                );
-            });
-        }
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            ctx.scale(horizontalScale, 1);
+
+            const gradient = ctx.createRadialGradient(
+                -radius * 0.4,
+                -radius * 0.4,
+                radius * 0.2,
+                0,
+                0,
+                radius
+            );
+            gradient.addColorStop(0, "#fff3a3");
+            gradient.addColorStop(0.5, "#ffd24c");
+            gradient.addColorStop(1, "#d38b00");
+
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(0, 0, radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            const borderScale = Math.max(horizontalScale, 0.01);
+            ctx.lineWidth = 3 / borderScale;
+            ctx.strokeStyle = "#b37400";
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.lineWidth = 2 / borderScale;
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.65)";
+            ctx.arc(-radius * 0.2, -radius * 0.15, radius * 0.6, -Math.PI / 2, Math.PI / 8);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.lineWidth = 2.5 / borderScale;
+            ctx.strokeStyle = "rgba(255, 190, 46, 0.5)";
+            ctx.arc(0, 0, radius * 0.82, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.restore();
+        });
 
         const frame = heroFrames[hero.animFrame];
         const heroVisible = hero.invulnerabilityTimer <= 0 || Math.floor((hero.blinkTimer ?? 0) / 0.1) % 2 === 0;

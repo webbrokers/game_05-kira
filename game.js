@@ -4,6 +4,19 @@
     const stage = document.getElementById("gameStage");
     const coinCountElement = document.getElementById("coinCountValue");
     const lifeDisplayElement = document.getElementById("lifeDisplay");
+    const gameOverOverlay = document.getElementById("gameOverOverlay");
+    const orientationOverlay = document.getElementById("orientationOverlay");
+    const restartButton = document.querySelector('[data-action="restart-game"]');
+    const exitToMenuButton = document.querySelector('[data-action="exit-to-menu"]');
+    const coarsePointerMedia =
+        typeof window.matchMedia === "function" ? window.matchMedia("(pointer: coarse)") : null;
+
+    if (gameOverOverlay) {
+        gameOverOverlay.setAttribute("aria-hidden", "true");
+    }
+    if (orientationOverlay) {
+        orientationOverlay.setAttribute("aria-hidden", "true");
+    }
 
     const background = {
         image: null,
@@ -46,6 +59,8 @@
         coinsCollected: 0,
         lives: MAX_LIVES,
         fallThreshold: 0,
+        isGameOver: false,
+        orientationBlocked: false,
     };
     let worldInitialized = false;
 
@@ -148,6 +163,80 @@
 
         lifeDisplayElement.innerHTML = hearts.join("");
         lifeDisplayElement.setAttribute("aria-label", `Жизни: ${gameState.lives}`);
+    }
+
+    function hasCoarsePointer() {
+        if (coarsePointerMedia) {
+            return coarsePointerMedia.matches;
+        }
+        return "ontouchstart" in window || navigator.maxTouchPoints > 0;
+    }
+
+    function resetInputState() {
+        inputState.left = false;
+        inputState.right = false;
+        inputState.crouch = false;
+        inputState.jumpRequested = false;
+    }
+
+    function setGameOverState(isGameOver) {
+        gameState.isGameOver = isGameOver;
+        if (gameOverOverlay) {
+            gameOverOverlay.hidden = !isGameOver;
+            gameOverOverlay.setAttribute("aria-hidden", String(!isGameOver));
+        }
+        if (isGameOver) {
+            resetInputState();
+            restartButton?.focus?.();
+        }
+    }
+
+    function triggerGameOver() {
+        setGameOverState(true);
+        hero.controlLock = Infinity;
+        hero.vx = 0;
+        hero.vy = 0;
+    }
+
+    function attemptLandscapeLock() {
+        try {
+            if (typeof screen === "undefined") {
+                return;
+            }
+            const orientation = screen.orientation;
+            if (orientation && typeof orientation.lock === "function") {
+                const lockResult = orientation.lock("landscape");
+                if (lockResult && typeof lockResult.catch === "function") {
+                    lockResult.catch(() => {});
+                }
+            }
+        } catch (err) {
+            // Orientation locking is not supported or not permitted; ignore.
+        }
+    }
+
+    function shouldBlockForOrientation() {
+        if (!orientationOverlay) {
+            return false;
+        }
+        if (!hasCoarsePointer()) {
+            return false;
+        }
+        return window.innerHeight > window.innerWidth;
+    }
+
+    function updateOrientationBlock() {
+        const blocked = shouldBlockForOrientation();
+        gameState.orientationBlocked = blocked;
+        if (orientationOverlay) {
+            orientationOverlay.hidden = !blocked;
+            orientationOverlay.setAttribute("aria-hidden", String(!blocked));
+        }
+        if (blocked) {
+            resetInputState();
+        } else {
+            attemptLandscapeLock();
+        }
     }
 
     function computeSpriteMetrics(frames) {
@@ -262,6 +351,7 @@
         coins.length = 0;
         gameState.coinsCollected = 0;
         gameState.lives = MAX_LIVES;
+        setGameOverState(false);
         updateCoinDisplay();
         updateLifeDisplay();
 
@@ -341,17 +431,23 @@
     }
 
     function handleHeroLifeLoss() {
-        if (hero.invulnerabilityTimer > 0) {
+        if (hero.invulnerabilityTimer > 0 || gameState.isGameOver) {
             return;
         }
 
         gameState.lives = Math.max(0, gameState.lives - 1);
         updateLifeDisplay();
+
+        if (gameState.lives <= 0) {
+            triggerGameOver();
+            return;
+        }
+
         respawnHero();
     }
 
     function handleHeroFall() {
-        if (hero.invulnerabilityTimer > 0) {
+        if (hero.invulnerabilityTimer > 0 || gameState.isGameOver) {
             return;
         }
         const heroBottom = hero.y + hero.height;
@@ -374,7 +470,11 @@
     }
 
     function update(delta) {
-        handleInput();
+        if (!gameState.orientationBlocked && !gameState.isGameOver) {
+            handleInput();
+        } else {
+            inputState.jumpRequested = false;
+        }
 
         if (hero.controlLock > 0) {
             hero.controlLock = Math.max(0, hero.controlLock - delta);
@@ -385,6 +485,14 @@
             hero.blinkTimer += delta;
         } else {
             hero.blinkTimer = 0;
+        }
+
+        if (gameState.orientationBlocked || gameState.isGameOver) {
+            hero.vx = 0;
+            hero.vy = 0;
+            updateCamera();
+            updateAnimation(0);
+            return;
         }
 
         const canControl = hero.controlLock <= 0;
@@ -657,6 +765,25 @@
     }
 
     function setInputState(action, isActive) {
+        if (gameState.isGameOver || gameState.orientationBlocked) {
+            if (!isActive) {
+                switch (action) {
+                    case "move-left":
+                        inputState.left = false;
+                        break;
+                    case "move-right":
+                        inputState.right = false;
+                        break;
+                    case "crouch":
+                        inputState.crouch = false;
+                        break;
+                    default:
+                        break;
+                }
+            }
+            return;
+        }
+
         switch (action) {
             case "move-left":
                 inputState.left = isActive;
@@ -755,10 +882,26 @@
 
     function toggleFullscreen(shouldEnter) {
         if (shouldEnter) {
-            if (!document.fullscreenElement) {
-                if (stage.requestFullscreen) {
-                    stage.requestFullscreen();
+            if (!document.fullscreenElement && stage.requestFullscreen) {
+                try {
+                    const request = stage.requestFullscreen();
+                    if (request && typeof request.then === "function") {
+                        request
+                            .then(() => {
+                                attemptLandscapeLock();
+                                updateOrientationBlock();
+                            })
+                            .catch(() => {});
+                    } else {
+                        attemptLandscapeLock();
+                        updateOrientationBlock();
+                    }
+                } catch (err) {
+                    // Ignore fullscreen errors.
                 }
+            } else if (document.fullscreenElement) {
+                attemptLandscapeLock();
+                updateOrientationBlock();
             }
         } else if (document.fullscreenElement) {
             document.exitFullscreen?.();
@@ -774,56 +917,45 @@
         });
     }
 
-    function rescaleWorld(scaleX, scaleY) {
-        if (!Number.isFinite(scaleX) || !Number.isFinite(scaleY)) {
-            return;
+    function bindGameMenus() {
+        if (restartButton) {
+            restartButton.addEventListener("click", () => {
+                setGameOverState(false);
+                initializeWorldContent(true);
+                resetInputState();
+                handleResize();
+            });
         }
 
-        const normalizedScaleX = Math.abs(scaleX - 1) < 0.001 ? 1 : scaleX;
-        const normalizedScaleY = Math.abs(scaleY - 1) < 0.001 ? 1 : scaleY;
+        if (exitToMenuButton) {
+            exitToMenuButton.addEventListener("click", () => {
+                window.location.href = "index.html";
+            });
+        }
+    }
 
-        if (normalizedScaleX === 1 && normalizedScaleY === 1) {
-            return;
+    function bindOrientationListeners() {
+        if (coarsePointerMedia) {
+            const handlePointerChange = () => updateOrientationBlock();
+            if (typeof coarsePointerMedia.addEventListener === "function") {
+                coarsePointerMedia.addEventListener("change", handlePointerChange);
+            } else if (typeof coarsePointerMedia.addListener === "function") {
+                coarsePointerMedia.addListener(handlePointerChange);
+            }
         }
 
-        hero.x *= normalizedScaleX;
-        hero.y *= normalizedScaleY;
-        hero.width *= normalizedScaleX;
-        hero.height *= normalizedScaleY;
-        hero.standHeight *= normalizedScaleY;
-        hero.crouchHeight *= normalizedScaleY;
-        hero.vx *= normalizedScaleX;
-        hero.vy *= normalizedScaleY;
-        hero.speed *= normalizedScaleX;
-        hero.crouchSpeed *= normalizedScaleX;
-        hero.jumpVelocity *= normalizedScaleY;
-        hero.gravity *= normalizedScaleY;
-        hero.spriteOffsetX *= normalizedScaleX;
-        hero.spriteOffsetY *= normalizedScaleY;
-        hero.spriteScale *= normalizedScaleY;
-        if (hero.groundY !== null) {
-            hero.groundY *= normalizedScaleY;
+        if (typeof screen !== "undefined" && screen.orientation) {
+            const handleOrientationChange = () => updateOrientationBlock();
+            if (typeof screen.orientation.addEventListener === "function") {
+                screen.orientation.addEventListener("change", handleOrientationChange);
+            } else if ("onchange" in screen.orientation) {
+                screen.orientation.onchange = handleOrientationChange;
+            }
         }
+    }
 
-        world.width *= normalizedScaleX;
-        world.height *= normalizedScaleY;
-        camera.x *= normalizedScaleX;
-        camera.y *= normalizedScaleY;
-
-        platforms.forEach((platform) => {
-            platform.x *= normalizedScaleX;
-            platform.y *= normalizedScaleY;
-            platform.width *= normalizedScaleX;
-            platform.height *= normalizedScaleY;
-        });
-
-        coins.forEach((coin) => {
-            coin.x *= normalizedScaleX;
-            coin.y *= normalizedScaleY;
-            coin.size *= (normalizedScaleX + normalizedScaleY) / 2;
-        });
-
-        updateFallThreshold();
+    function rescaleWorld() {
+        // Intentionally no-op: keep world coordinates stable across resizes.
     }
 
     function handleResize() {
@@ -845,15 +977,11 @@
         canvas.width = Math.round(displayWidth * nextDpr);
         canvas.height = Math.round(displayHeight * nextDpr);
 
-        const scaleX = displayWidth / previousWidth;
-        const scaleY = displayHeight / previousHeight;
-
-        rescaleWorld(scaleX, scaleY);
-
+        // Do not rescale world/entities; only adjust canvas and camera.
         world.width = Math.max(world.width, viewportWidth * 3);
-        world.height = Math.max(world.height, viewportHeight);
         updateFallThreshold();
         updateCamera();
+        updateOrientationBlock();
     }
 
     function bindResizeObserver() {
@@ -872,6 +1000,8 @@
     bindControlButtons();
     bindKeyboard();
     bindFullscreenButtons();
+    bindGameMenus();
+    bindOrientationListeners();
     bindResizeObserver();
     init();
 })();

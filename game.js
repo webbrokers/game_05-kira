@@ -1417,6 +1417,27 @@
         });
     }
 
+    function navigateToMenu() {
+        audio?.stopMusic();
+        audio?.setRunningLoop(false);
+        resetInputState();
+        setGameOverState(false);
+        setPrestartState(true);
+        initializeWorldContent(true);
+        if (document.fullscreenElement) {
+            try {
+                document.exitFullscreen?.();
+            } catch (_) {
+                // Ignore fullscreen exit errors.
+            }
+        }
+        if (window.appNavigation && typeof window.appNavigation.go === "function") {
+            window.appNavigation.go("menu");
+        } else {
+            window.location.href = "menu.html";
+        }
+    }
+
     function bindMenuButton() {
         if (!menuButton) {
             return;
@@ -1424,13 +1445,7 @@
 
         menuButton.addEventListener("click", () => {
             audio?.playMenuClick();
-            audio?.stopMusic();
-            audio?.setRunningLoop(false);
-            resetInputState();
-            if (document.fullscreenElement) {
-                document.exitFullscreen?.();
-            }
-            window.location.href = "menu.html";
+            navigateToMenu();
         });
     }
 
@@ -1449,13 +1464,7 @@
         if (exitToMenuButton) {
             exitToMenuButton.addEventListener("click", () => {
                 audio?.playMenuClick();
-                audio?.stopMusic();
-                audio?.setRunningLoop(false);
-                resetInputState();
-                if (document.fullscreenElement) {
-                    document.exitFullscreen?.();
-                }
-                window.location.href = "menu.html";
+                navigateToMenu();
             });
         }
     }
@@ -1528,6 +1537,28 @@
 
         handleResize();
     }
+
+    window.gameView = {
+        onShow() {
+            setGameOverState(false);
+            setPrestartState(true);
+            resetInputState();
+            initializeWorldContent(true);
+            audio?.stopMusic();
+            audio?.setRunningLoop(false);
+            window.requestAnimationFrame(() => {
+                handleResize();
+                updateOrientationBlock();
+            });
+        },
+        onHide() {
+            audio?.stopMusic();
+            audio?.setRunningLoop(false);
+            resetInputState();
+            setGameOverState(false);
+            setPrestartState(true);
+        },
+    };
 
     bindStartChaseButton();
     setPrestartState(true);

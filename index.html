@@ -6,17 +6,135 @@
     <title>Game 05 Kira</title>
     <link rel="stylesheet" href="styles.css">
 </head>
-<body class="shell-page">
-    <div class="shell-container">
-        <iframe
-            id="appFrame"
-            class="shell-frame"
-            src="menu.html"
-            title="Game 05: Kira"
-            allow="fullscreen; autoplay; encrypted-media"
-            allowfullscreen
-        ></iframe>
+<body class="app-body">
+    <div class="app-root" id="appRoot">
+        <div
+            class="overlay overlay--orientation orientation-overlay"
+            id="orientationOverlay"
+            aria-hidden="false"
+        >
+            <div class="overlay-card orientation-overlay__card" role="alert" aria-live="assertive">
+                <h2 class="overlay-title">&#1055;&#1086;&#1074;&#1077;&#1088;&#1085;&#1080;&#1090;&#1077; &#1091;&#1089;&#1090;&#1088;&#1086;&#1081;&#1089;&#1090;&#1074;&#1086;</h2>
+                <p class="overlay-text">&#1055;&#1086;&#1078;&#1072;&#1083;&#1091;&#1081;&#1089;&#1090;&#1072;, &#1087;&#1086;&#1074;&#1077;&#1088;&#1085;&#1080;&#1090;&#1077; &#1091;&#1089;&#1090;&#1088;&#1086;&#1081;&#1089;&#1090;&#1074;&#1086; &#1075;&#1086;&#1088;&#1080;&#1079;&#1086;&#1085;&#1090;&#1072;&#1083;&#1100;&#1085;&#1086; &#1080; &#1074;&#1082;&#1083;&#1102;&#1095;&#1080;&#1090;&#1077; &#1080;&#1075;&#1088;&#1091; &#1074; &#1087;&#1086;&#1083;&#1085;&#1086;&#1101;&#1082;&#1088;&#1072;&#1085;&#1085;&#1086;&#1084; &#1088;&#1077;&#1078;&#1080;&#1084;&#1077;.</p>
+                <div class="intro-progress orientation-progress" aria-hidden="false">
+                    <div class="intro-progress__bar" id="preloadProgressBar" style="width: 0%;"></div>
+                </div>
+                <p class="intro-progress__value" id="preloadProgressValue">0%</p>
+            </div>
+        </div>
+
+        <main class="app-stage" id="appStage">
+            <section
+                class="view menu-page view--active"
+                id="menuView"
+                data-view="menu"
+                aria-hidden="false"
+            >
+                <main class="menu-container">
+                    <h1 class="menu-title">Game 05: Kira</h1>
+                    <button class="menu-button" type="button" data-action="enter-fullscreen">
+                        &#1055;&#1086;&#1083;&#1085;&#1086;&#1101;&#1082;&#1088;&#1072;&#1085;&#1085;&#1099;&#1081; &#1088;&#1077;&#1078;&#1080;&#1084;
+                    </button>
+                    <button
+                        class="menu-button"
+                        type="button"
+                        data-action="start-game"
+                        disabled
+                    >
+                        &#1048;&#1075;&#1088;&#1072;&#1090;&#1100;
+                    </button>
+                </main>
+            </section>
+
+            <section
+                class="view intro-page"
+                id="introView"
+                data-view="intro"
+                hidden
+                aria-hidden="true"
+            >
+                <div class="intro-stage" id="introStage">
+                    <video
+                        class="intro-video intro-video--hidden"
+                        id="introVideo"
+                        playsinline
+                        preload="auto"
+                    ></video>
+
+                    <div class="intro-poster" id="introPoster" hidden>
+                        <img class="intro-poster__image" src="img/go-go-go.jpg" alt="Go! Go! Go!">
+                        <button class="intro-call-button" type="button" id="callHeroButton">
+                            &#1055;&#1086;&#1079;&#1074;&#1072;&#1090;&#1100; &#1075;&#1077;&#1088;&#1086;&#1103;
+                        </button>
+                    </div>
+
+                    <video
+                        class="intro-video intro-video--hidden"
+                        id="heroVideo"
+                        playsinline
+                        preload="auto"
+                    ></video>
+                </div>
+            </section>
+
+            <section
+                class="view play-page"
+                id="playView"
+                data-view="play"
+                hidden
+                aria-hidden="true"
+            >
+                <div class="game-stage" id="gameStage">
+                    <canvas class="game-canvas" id="gameCanvas" width="960" height="540"></canvas>
+
+                    <div class="game-topbar">
+                        <button class="topbar-button topbar-button--menu" data-action="open-menu">
+                            &#1052;&#1077;&#1085;&#1102;
+                        </button>
+                    </div>
+
+                    <div class="hud hud--coins" id="coinDisplay" aria-live="polite">
+                        <span class="hud-label">&#1052;&#1086;&#1085;&#1077;&#1090;&#1099;</span>
+                        <span class="hud-value" id="coinCountValue">0</span>
+                    </div>
+
+                    <div class="hud hud--lives" id="lifeDisplay" aria-live="polite" aria-label="&#1046;&#1080;&#1079;&#1085;&#1080;"></div>
+
+                    <div class="control-pad control-pad--jump">
+                        <button class="control-button control-button--jump" data-action="jump" aria-label="&#1055;&#1088;&#1099;&#1078;&#1086;&#1082;"></button>
+                    </div>
+
+                    <div class="control-pad control-pad--horizontal">
+                        <button class="control-button control-button--left" data-action="move-left" aria-label="&#1044;&#1074;&#1080;&#1078;&#1077;&#1085;&#1080;&#1077; &#1074;&#1083;&#1077;&#1074;&#1086;"></button>
+                        <button class="control-button control-button--right" data-action="move-right" aria-label="&#1044;&#1074;&#1080;&#1078;&#1077;&#1085;&#1080;&#1077; &#1074;&#1087;&#1088;&#1072;&#1074;&#1086;"></button>
+                    </div>
+
+                    <div class="overlay overlay--game-over" id="gameOverOverlay" hidden aria-hidden="true">
+                        <div class="overlay-card" role="dialog" aria-modal="true" aria-labelledby="gameOverTitle">
+                            <h2 class="overlay-title" id="gameOverTitle">&#1048;&#1075;&#1088;&#1072; &#1086;&#1082;&#1086;&#1085;&#1095;&#1077;&#1085;&#1072;</h2>
+                            <p class="overlay-text">&#1061;&#1086;&#1090;&#1080;&#1090;&#1077; &#1087;&#1086;&#1087;&#1088;&#1086;&#1073;&#1086;&#1074;&#1072;&#1090;&#1100; &#1105;&#1097;&#1105; &#1088;&#1072;&#1079; &#1080;&#1083;&#1080; &#1074;&#1077;&#1088;&#1085;&#1091;&#1090;&#1100;&#1089;&#1103; &#1074; &#1084;&#1077;&#1085;&#1102;?</p>
+                            <div class="overlay-actions">
+                                <button class="overlay-button" data-action="restart-game">
+                                    &#1045;&#1097;&#1105; &#1088;&#1072;&#1079; &#1089;&#1099;&#1075;&#1088;&#1072;&#1090;&#1100;
+                                </button>
+                                <button class="overlay-button overlay-button--secondary" data-action="exit-to-menu">
+                                    &#1042;&#1099;&#1081;&#1090;&#1080; &#1074; &#1084;&#1077;&#1085;&#1102;
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="overlay overlay--prestart" id="prestartOverlay" aria-hidden="false">
+                        <button class="prestart-button" type="button" data-action="start-chase">
+                            &#1053;&#1072;&#1095;&#1072;&#1090;&#1100; &#1087;&#1086;&#1075;&#1086;&#1085;&#1102;
+                        </button>
+                    </div>
+                </div>
+            </section>
+        </main>
     </div>
+    <script src="audio.js"></script>
+    <script src="game.js"></script>
     <script src="index.js"></script>
 </body>
 </html>

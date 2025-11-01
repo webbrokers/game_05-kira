@@ -11,7 +11,7 @@
 
     const assetDefinitions = [
         { key: "intro", src: "video/intro.mp4", mime: "video/mp4" },
-        { key: "hero", src: "video/hero-come.mp4", mime: "video/mp4" },
+        { key: "hero", src: "video/hero_come2.mp4", mime: "video/mp4" },
     ];
 
     const objectUrls = [];
@@ -446,7 +446,7 @@
         }
 
         const introSource = assets.get("intro") || "video/intro.mp4";
-        const heroSource = assets.get("hero") || "video/hero-come.mp4";
+        const heroSource = assets.get("hero") || "video/hero_come2.mp4";
 
         prepareVideo(introVideo, introSource);
         prepareVideo(heroVideo, heroSource);

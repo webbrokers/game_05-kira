@@ -386,80 +386,98 @@ body.play-page {
 .control-pad {
     position: absolute;
     display: flex;
-    gap: 0.75rem;
+    gap: clamp(0.6rem, 1.8vw, 1.1rem);
     z-index: 15;
+    pointer-events: auto;
 }
 
 .control-pad--vertical {
     flex-direction: column;
-    left: 30px;
-    bottom: 30px;
+    left: clamp(40px, 6vw, 72px);
+    bottom: clamp(40px, 12vh, 84px);
 }
 
 .control-pad--horizontal {
-    left: 30px;
-    bottom: 30px;
+    left: clamp(48px, 7vw, 84px);
+    bottom: clamp(48px, 12vh, 88px);
 }
 
 .control-pad--jump {
-    right: 60px;
-    bottom: 60px;
+    right: clamp(48px, 7vw, 84px);
+    bottom: clamp(52px, 12vh, 96px);
 }
 
 .control-button {
-    width: clamp(44px, 5vw, 60px);
-    height: clamp(44px, 5vw, 60px);
-    border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    background: rgba(38, 38, 38, 0.85);
-    display: flex;
+    --control-button-size: clamp(66px, 9vw, 96px);
+    --sprite-sheet-ratio: 0.6656322731;
+    --sprite-sheet-scale-x: 1;
+    --sprite-position-x: 0;
+    --sprite-position-y: 0;
+    --sprite-aspect: 1;
+    width: var(--control-button-size);
+    height: calc(var(--control-button-size) * var(--sprite-aspect));
+    border: none;
+    background: transparent;
+    background-image: url("img/button.png");
+    background-repeat: no-repeat;
+    background-size: calc(var(--control-button-size) * var(--sprite-sheet-scale-x))
+        calc(var(--control-button-size) * var(--sprite-sheet-scale-x) * var(--sprite-sheet-ratio));
+    background-position:
+        calc(-1 * var(--control-button-size) * var(--sprite-position-x))
+        calc(-1 * var(--control-button-size) * var(--sprite-position-y));
+    display: inline-flex;
     align-items: center;
     justify-content: center;
+    padding: 0;
     cursor: pointer;
-    --control-button-scale: 1;
-    transform: scale(var(--control-button-scale));
-    transform-origin: center;
-    transition: transform 0.2s ease, background 0.2s ease;
+    transition: transform 0.18s ease, filter 0.18s ease, width 0.2s ease, height 0.2s ease;
     user-select: none;
     touch-action: manipulation;
-    padding: 0;
+}
+
+.control-button:hover,
+.control-button:focus-visible {
+    filter: brightness(1.05);
+}
+
+.control-button:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.4);
+    outline-offset: 4px;
 }
 
 .control-button:active {
-    --control-button-scale: 0.92;
-    background: rgba(58, 58, 58, 0.85);
+    transform: scale(0.94);
+    filter: brightness(0.92);
 }
 
-.control-button--jump-active,
-.control-button--jump-active:active {
-    --control-button-scale: 2;
+.control-button--left {
+    --sprite-sheet-scale-x: 7.408046;
+    --sprite-position-x: 0.310345;
+    --sprite-position-y: 3.678161;
+    --sprite-aspect: 1.005747;
 }
 
-.control-button--arrow::before {
-    content: "";
-    width: 0;
-    height: 0;
-    border-left: 12px solid transparent;
-    border-right: 12px solid transparent;
-    border-bottom: 18px solid #f8f8f8;
-    transition: opacity 0.2s ease;
-    transform-origin: 50% 50%;
+.control-button--right {
+    --sprite-sheet-scale-x: 7.408046;
+    --sprite-position-x: 1.350575;
+    --sprite-position-y: 3.678161;
+    --sprite-aspect: 1.005747;
 }
 
-.control-button--up::before {
-    transform: rotate(0);
+.control-button--jump {
+    --control-button-size: clamp(68px, 9.5vw, 100px);
+    --sprite-sheet-scale-x: 7.365714;
+    --sprite-position-x: 5.034286;
+    --sprite-position-y: 3.657143;
+    --sprite-aspect: 0.994286;
 }
 
-.control-button--down::before {
-    transform: rotate(180deg);
-}
-
-.control-button--left::before {
-    transform: rotate(-90deg);
-}
-
-.control-button--right::before {
-    transform: rotate(90deg);
+.control-button--jump.control-button--jump-active {
+    --control-button-size: clamp(84px, 11vw, 118px);
+    --sprite-sheet-scale-x: 6.576531;
+    --sprite-position-x: 5.510204;
+    --sprite-position-y: 3.214286;
+    --sprite-aspect: 1;
 }
 
 .overlay {

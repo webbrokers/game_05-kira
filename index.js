@@ -1,172 +1,51 @@
 (() => {
-    const playButton = document.querySelector('[data-action="start-game"]');
-    const fullscreenButton = document.querySelector('[data-action="enter-fullscreen"]');
-    const orientationOverlay = document.getElementById("orientationOverlay");
-    const coarsePointerMedia =
-        typeof window.matchMedia === "function" ? window.matchMedia("(pointer: coarse)") : null;
-    const audio = window.gameAudio || null;
-    const FULLSCREEN_FLAG_KEY = "game05kira_fullscreen_requested";
-    let orientationBlocked = false;
+    const root = document.documentElement;
+    const frame = document.getElementById("appFrame");
+    const DEFAULT_PAGE = "menu";
+    const ALLOWED_PAGES = new Set(["menu", "intro", "play"]);
 
-    if (orientationOverlay) {
-        orientationOverlay.hidden = true;
-        orientationOverlay.setAttribute("aria-hidden", "true");
-    }
-
-    function hasCoarsePointer() {
-        if (coarsePointerMedia) {
-            return coarsePointerMedia.matches;
+    function resolveInitialPage() {
+        if (!frame) {
+            return `${DEFAULT_PAGE}.html`;
         }
-        return "ontouchstart" in window || navigator.maxTouchPoints > 0;
-    }
+        let page = DEFAULT_PAGE;
+        let fsFlag = "";
 
-    function shouldBlockForOrientation() {
-        if (!orientationOverlay) {
-            return false;
-        }
-        if (!hasCoarsePointer()) {
-            return false;
-        }
-        return window.innerHeight > window.innerWidth;
-    }
-
-    function updateOrientationOverlay() {
-        orientationBlocked = shouldBlockForOrientation();
-        if (!orientationOverlay) {
-            return;
-        }
-
-        orientationOverlay.hidden = !orientationBlocked;
-        orientationOverlay.setAttribute("aria-hidden", String(!orientationBlocked));
-    }
-
-    function attemptLandscapeLock() {
         try {
-            if (typeof screen === "undefined") {
-                return;
-            }
-            const orientation = screen.orientation;
-            if (orientation && typeof orientation.lock === "function") {
-                const lockResult = orientation.lock("landscape");
-                if (lockResult && typeof lockResult.catch === "function") {
-                    lockResult.catch(() => {});
-                }
-            }
-        } catch (err) {
-            // Ignore orientation locking errors.
-        }
-    }
+            const url = new URL(window.location.href);
+            const requestedPage = (url.searchParams.get("page") || "").toLowerCase();
+            const fsParam = url.searchParams.get("fs");
 
-    function requestAnyFullscreen() {
-        try {
-            const root = document.documentElement;
-            const method =
-                root.requestFullscreen ||
-                root.webkitRequestFullscreen ||
-                root.msRequestFullscreen;
-            if (typeof method === "function") {
-                const res = method.call(root);
-                if (res && typeof res.catch === "function") {
-                    res.catch(() => {});
-                }
+            if (requestedPage && ALLOWED_PAGES.has(requestedPage)) {
+                page = requestedPage;
+            }
+            if (fsParam === "1") {
+                fsFlag = "?fs=1";
             }
         } catch (_) {
-            // Ignore
+            // Ignore malformed URL scenarios.
+        }
+
+        return `${page}.html${fsFlag}`;
+    }
+
+    function updateViewportHeight() {
+        const height = Math.max(window.innerHeight || 0, 0);
+        if (height > 0) {
+            root.style.setProperty("--app-viewport-height", `${height}px`);
         }
     }
 
-    function flagFullscreenIntent() {
-        if (typeof window === "undefined") {
-            return;
+    updateViewportHeight();
+    window.addEventListener("resize", updateViewportHeight);
+    window.addEventListener("orientationchange", updateViewportHeight);
+    window.addEventListener("pageshow", updateViewportHeight);
+
+    if (frame) {
+        const initialSrc = resolveInitialPage();
+        if (frame.getAttribute("src") !== initialSrc) {
+            frame.setAttribute("src", initialSrc);
         }
-        try {
-            if (window.sessionStorage) {
-                window.sessionStorage.setItem(FULLSCREEN_FLAG_KEY, "1");
-            }
-        } catch (_) {
-            // Ignore storage errors (e.g., private mode).
-        }
+        frame.setAttribute("allowtransparency", "true");
     }
-
-    function enablePlayButton() {
-        if (!playButton) {
-            return;
-        }
-        playButton.disabled = false;
-    }
-
-    function bindStartButton() {
-        if (!playButton) {
-            return;
-        }
-
-        playButton.addEventListener("click", (event) => {
-            if (playButton.disabled) {
-                event.preventDefault();
-                return;
-            }
-
-            event.preventDefault();
-            audio?.playMenuClick();
-
-            flagFullscreenIntent();
-
-            // Try to enter fullscreen immediately on user gesture (best effort)
-            requestAnyFullscreen();
-
-            const targetHref = playButton.dataset.target || "intro.html";
-            let targetUrl = targetHref;
-            try {
-                const url = new URL(targetHref, window.location.href);
-                url.searchParams.set("fs", "1");
-                targetUrl = url.pathname + url.search + url.hash;
-            } catch (_) {
-                // Fallback to hash flag if URL construction fails (e.g., older browsers)
-                targetUrl = `${targetHref}${targetHref.includes("#") ? "" : "#fs"}`;
-            }
-
-            window.location.href = targetUrl;
-        });
-    }
-
-    function bindFullscreenButton() {
-        if (!fullscreenButton) {
-            return;
-        }
-
-        fullscreenButton.addEventListener("click", (event) => {
-            event.preventDefault();
-            audio?.playMenuClick();
-            flagFullscreenIntent();
-            requestAnyFullscreen();
-            attemptLandscapeLock();
-            enablePlayButton();
-        });
-    }
-
-    function bindOrientationListeners() {
-        if (coarsePointerMedia) {
-            const handler = () => updateOrientationOverlay();
-            if (typeof coarsePointerMedia.addEventListener === "function") {
-                coarsePointerMedia.addEventListener("change", handler);
-            } else if (typeof coarsePointerMedia.addListener === "function") {
-                coarsePointerMedia.addListener(handler);
-            }
-        }
-
-        window.addEventListener("resize", () => {
-            updateOrientationOverlay();
-        });
-        window.addEventListener("orientationchange", () => {
-            updateOrientationOverlay();
-            attemptLandscapeLock();
-        });
-    }
-
-    bindFullscreenButton();
-    bindStartButton();
-    bindOrientationListeners();
-    updateOrientationOverlay();
-    audio?.playMenuMusic();
-    attemptLandscapeLock();
 })();

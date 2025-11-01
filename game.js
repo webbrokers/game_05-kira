@@ -1345,7 +1345,7 @@
             if (document.fullscreenElement) {
                 document.exitFullscreen?.();
             }
-            window.location.href = "index.html";
+            window.location.href = "menu.html";
         });
     }
 
@@ -1370,7 +1370,7 @@
                 if (document.fullscreenElement) {
                     document.exitFullscreen?.();
                 }
-                window.location.href = "index.html";
+                window.location.href = "menu.html";
             });
         }
     }

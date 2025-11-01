@@ -30,11 +30,20 @@
 
     const background = {
         image: null,
-        parallaxAmplitude: 24,
-        parallaxFactorX: 0.25,
+        parallaxAmplitude: 12,
+        parallaxFactorX: 0.125,
         scale: 1,
         scaledWidth: 0,
         scaledHeight: 0,
+        currentVerticalShift: 0,
+        verticalResponse: 4,
+        scaleMultiplier: 1,
+        scaleTarget: 1,
+        scaleResponse: 9,
+        scaleHoldTimer: 0,
+        scaleHoldDuration: 0.28,
+        doubleJumpScale: 1.1,
+        maxScale: 1.15,
     };
 
     const TERRAIN_BLUEPRINT = {
@@ -275,6 +284,66 @@
         lifeDisplayElement.setAttribute("aria-label", `\u0416\u0438\u0437\u043d\u0438: ${gameState.lives}`);
     }
 
+    function updateBackgroundState(delta) {
+        const targetGround =
+            terrain.groundY ?? hero.lastSafePlatform?.y ?? (world.height - floorOffset);
+        const groundReference = hero.groundY ?? targetGround;
+        const groundY = groundReference - hero.height;
+        const targetShift = clamp(
+            groundY - hero.y,
+            -background.parallaxAmplitude,
+            background.parallaxAmplitude
+        );
+
+        if (!Number.isFinite(background.currentVerticalShift)) {
+            background.currentVerticalShift = targetShift;
+        }
+
+        if (Number.isFinite(delta) && delta > 0) {
+            const response = Math.max(background.verticalResponse || 0, 0);
+            const lerpFactor = response > 0 ? 1 - Math.exp(-response * delta) : 1;
+            background.currentVerticalShift +=
+                (targetShift - background.currentVerticalShift) * lerpFactor;
+        } else {
+            background.currentVerticalShift = targetShift;
+        }
+
+        if (!Number.isFinite(background.scaleMultiplier) || background.scaleMultiplier < 1) {
+            background.scaleMultiplier = 1;
+        }
+
+        if (background.scaleHoldTimer > 0 && Number.isFinite(delta)) {
+            background.scaleHoldTimer = Math.max(0, background.scaleHoldTimer - delta);
+            if (background.scaleHoldTimer <= 0) {
+                background.scaleTarget = 1;
+            }
+        } else {
+            background.scaleTarget = 1;
+        }
+
+        const maxScale = background.maxScale ?? 1.2;
+        const desiredScale = clamp(background.scaleTarget, 1, maxScale);
+
+        if (Number.isFinite(delta) && delta > 0) {
+            const scaleResponse = Math.max(background.scaleResponse || 0, 0);
+            const scaleLerp = scaleResponse > 0 ? 1 - Math.exp(-scaleResponse * delta) : 1;
+            background.scaleMultiplier += (desiredScale - background.scaleMultiplier) * scaleLerp;
+        } else {
+            background.scaleMultiplier = desiredScale;
+        }
+
+        if (Math.abs(background.scaleMultiplier - 1) < 0.001) {
+            background.scaleMultiplier = 1;
+        }
+
+        background.scaleMultiplier = clamp(background.scaleMultiplier, 1, maxScale);
+        background.currentVerticalShift = clamp(
+            background.currentVerticalShift,
+            -background.parallaxAmplitude,
+            background.parallaxAmplitude
+        );
+    }
+
     function hasCoarsePointer() {
         if (coarsePointerMedia) {
             return coarsePointerMedia.matches;
@@ -296,9 +365,12 @@
             jumpBoostTimeoutId = null;
         }
         jumpButtonElement?.classList.remove("control-button--jump-active");
+        background.scaleTarget = 1;
+        background.scaleHoldTimer = 0;
+        background.scaleMultiplier = 1;
     }
 
-    function triggerJumpVisualBoost() {
+    function triggerJumpVisualBoost(isDoubleJump = false) {
         if (!jumpButtonElement) {
             return;
         }
@@ -311,6 +383,17 @@
             jumpButtonElement.classList.remove("control-button--jump-active");
             jumpBoostTimeoutId = null;
         }, 1000);
+
+        if (isDoubleJump) {
+            const desiredScale = clamp(
+                background.doubleJumpScale ?? 1.1,
+                1,
+                background.maxScale ?? 1.2
+            );
+            background.scaleTarget = Math.max(background.scaleTarget, desiredScale);
+            const holdDuration = background.scaleHoldDuration ?? 0.28;
+            background.scaleHoldTimer = Math.max(background.scaleHoldTimer, holdDuration);
+        }
     }
 
     function setGameOverState(isGameOver) {
@@ -809,6 +892,7 @@
             hero.vy = 0;
             updateCamera();
             updateAnimation(0);
+            updateBackgroundState(delta);
             return;
         }
 
@@ -896,6 +980,7 @@
         updateCoins(delta);
         updateCamera();
         updateAnimation(delta);
+        updateBackgroundState(delta);
         inputState.jumpRequested = false;
     }
 
@@ -1017,19 +1102,27 @@
         ctx.setTransform(deviceScale, 0, 0, deviceScale, 0, 0);
 
         // Background with vertical and horizontal parallax
-        const targetGround = terrain.groundY ?? hero.lastSafePlatform?.y ?? (world.height - floorOffset);
-        const groundReference = hero.groundY ?? targetGround;
-        const groundY = groundReference - hero.height;
-        const jumpOffset = clamp(groundY - hero.y, -background.parallaxAmplitude, background.parallaxAmplitude);
-        const parallaxShift = jumpOffset;
-        const backgroundY = -background.parallaxAmplitude + parallaxShift;
+        const verticalShift = background.currentVerticalShift ?? 0;
+        const backgroundY = -background.parallaxAmplitude + verticalShift;
+        const heroCenterX = hero.x + hero.width / 2;
+        const heroCenterY = hero.y + hero.height / 2;
+        const heroScreenX = heroCenterX - camera.x;
+        const heroScreenY = heroCenterY - camera.y;
+        const backgroundScale = background.scaleMultiplier ?? 1;
+
+        ctx.save();
+        if (backgroundScale !== 1) {
+            ctx.translate(heroScreenX, heroScreenY);
+            ctx.scale(backgroundScale, backgroundScale);
+            ctx.translate(-heroScreenX, -heroScreenY);
+        }
 
         if (background.image && background.scaledWidth > 0 && background.scaledHeight > 0) {
             const sourceWidth = background.image.naturalWidth || background.image.width;
             const sourceHeight = background.image.naturalHeight || background.image.height;
             const scaledWidth = background.scaledWidth;
             const scaledHeight = background.scaledHeight;
-            const parallaxOffsetRaw = camera.x * (background.parallaxFactorX ?? 0.25);
+            const parallaxOffsetRaw = camera.x * (background.parallaxFactorX ?? 0.125);
             let offsetX = ((parallaxOffsetRaw % scaledWidth) + scaledWidth) % scaledWidth;
             let drawX = -offsetX;
             if (drawX > 0) {
@@ -1055,6 +1148,8 @@
             ctx.fillStyle = gradient;
             ctx.fillRect(0, 0, viewportWidth, viewportHeight);
         }
+
+        ctx.restore();
 
         ctx.save();
         ctx.translate(-camera.x, -camera.y);
@@ -1225,9 +1320,10 @@
                 break;
             case "jump":
                 if (isActive) {
+                    const isDoubleJump = hero.jumpCount >= 1 && hero.jumpCount < hero.maxJumps;
                     inputState.jumpRequested = true;
                     if (hero.jumpCount < hero.maxJumps) {
-                        triggerJumpVisualBoost();
+                        triggerJumpVisualBoost(isDoubleJump);
                     }
                 }
                 break;

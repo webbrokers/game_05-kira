@@ -32,6 +32,40 @@
     const background = {
         image: null,
         parallaxAmplitude: 24,
+        parallaxFactorX: 0.25,
+        scale: 1,
+        scaledWidth: 0,
+        scaledHeight: 0,
+    };
+
+    const TERRAIN_BLUEPRINT = {
+        sourceWidth: 12592,
+        sourceHeight: 2400,
+        top: 1505,
+        bottom: 2400,
+        segments: [
+            [0, 4497],
+            [4872, 6139],
+            [6444, 7711],
+            [8099, 12592],
+        ],
+    };
+
+    const terrain = {
+        baseImage: null,
+        decorImage: null,
+        scale: 1,
+        drawWidth: 0,
+        drawHeight: 0,
+        drawY: 0,
+        groundY: null,
+        collisionHeight: 80,
+        tileCount: 2,
+        tiles: [],
+        collisionSegments: [],
+        totalWidth: 0,
+        sourceWidth: TERRAIN_BLUEPRINT.sourceWidth,
+        sourceHeight: TERRAIN_BLUEPRINT.sourceHeight,
     };
 
     const coinAnimation = {
@@ -49,9 +83,7 @@
     });
 
     const heroFrames = [];
-    const floorOffset = 40;
-    const PLATFORM_BOTTOM_OFFSET_MIN = 40;
-    const PLATFORM_BOTTOM_OFFSET_MAX = 100;
+    let floorOffset = 40;
     const coinPadding = 10;
     let viewportWidth = canvas.width;
     let viewportHeight = canvas.height;
@@ -185,10 +217,16 @@
         const heroPromises = heroFrameSources.map(loadImage);
         Promise.all([
             Promise.all(heroPromises),
-            loadImage("img/background_02.png"),
+            loadImage("img/new_bg/bg_01.png"),
+            loadImage("img/new_bg/platform-01.png"),
+            loadImage("img/new_bg/platform-02.png"),
         ])
-            .then(([heroImages, backgroundImage]) => {
+            .then(([heroImages, backgroundImage, platformBaseImage, platformDecorImage]) => {
                 background.image = backgroundImage;
+                terrain.baseImage = platformBaseImage;
+                terrain.decorImage = platformDecorImage;
+                updateBackgroundMetrics();
+                updateTerrainMetrics();
                 heroFrames.push(...heroImages);
                 heroSpriteMetrics = computeSpriteMetrics(heroFrames);
                 applyHeroDimensions(hero.height);
@@ -217,12 +255,6 @@
 
     function clamp(value, min, max) {
         return Math.min(Math.max(value, min), max);
-    }
-
-    function clampPlatformYToBottomRange(y) {
-        const minY = world.height - PLATFORM_BOTTOM_OFFSET_MAX;
-        const maxY = Math.min(world.height - PLATFORM_BOTTOM_OFFSET_MIN, world.height - floorOffset);
-        return clamp(y, minY, Math.max(minY, maxY));
     }
 
     function updateCoinDisplay() {
@@ -602,6 +634,100 @@
         gameState.fallThreshold = world.height + viewportHeight * 0.5;
     }
 
+    function updateBackgroundMetrics() {
+        if (!background.image) {
+            return;
+        }
+        const imageWidth = background.image.naturalWidth || background.image.width;
+        const imageHeight = background.image.naturalHeight || background.image.height;
+        if (!imageWidth || !imageHeight) {
+            return;
+        }
+
+        const targetHeight = viewportHeight + background.parallaxAmplitude * 2;
+        const scale = targetHeight / imageHeight;
+        background.scale = scale;
+        background.scaledWidth = imageWidth * scale;
+        background.scaledHeight = imageHeight * scale;
+    }
+
+    function updateTerrainMetrics() {
+        if (!terrain.baseImage) {
+            return false;
+        }
+
+        const image = terrain.baseImage;
+        const sourceWidth = image.naturalWidth || image.width;
+        const sourceHeight = image.naturalHeight || image.height;
+        if (!sourceWidth || !sourceHeight) {
+            return false;
+        }
+
+        terrain.sourceWidth = sourceWidth;
+        terrain.sourceHeight = sourceHeight;
+
+        const blueprintWidth = TERRAIN_BLUEPRINT.sourceWidth;
+        const blueprintHeight = TERRAIN_BLUEPRINT.sourceHeight;
+        const topSource = (TERRAIN_BLUEPRINT.top / blueprintHeight) * sourceHeight;
+        const bottomSource = (TERRAIN_BLUEPRINT.bottom / blueprintHeight) * sourceHeight;
+
+        const previousScale = terrain.scale;
+        const previousGroundY = terrain.groundY;
+
+        const scale = viewportHeight / sourceHeight;
+        const scaledWidth = sourceWidth * scale;
+        const scaledHeight = sourceHeight * scale;
+        const drawY = world.height - scaledHeight;
+        const groundY = drawY + topSource * scale;
+        const collisionHeight = Math.max((bottomSource - topSource) * scale * 0.35, 80);
+
+        terrain.scale = scale;
+        terrain.drawWidth = scaledWidth;
+        terrain.drawHeight = scaledHeight;
+        terrain.drawY = drawY;
+        terrain.groundY = groundY;
+        terrain.collisionHeight = collisionHeight;
+
+        const tileCount = terrain.tileCount || 2;
+        terrain.tiles = Array.from({ length: tileCount }, (_, index) => ({
+            x: index * scaledWidth,
+            y: drawY,
+        }));
+        terrain.totalWidth = tileCount * scaledWidth;
+
+        const segments = [];
+        for (let tileIndex = 0; tileIndex < tileCount; tileIndex += 1) {
+            const tileOffset = tileIndex * scaledWidth;
+            for (let segmentIndex = 0; segmentIndex < TERRAIN_BLUEPRINT.segments.length; segmentIndex += 1) {
+                const [startRef, endRef] = TERRAIN_BLUEPRINT.segments[segmentIndex];
+                const startSource =
+                    (startRef / blueprintWidth) * sourceWidth;
+                const endSource =
+                    (endRef / blueprintWidth) * sourceWidth;
+                const segmentWidth = (endSource - startSource) * scale;
+                if (segmentWidth <= 2) {
+                    continue;
+                }
+                const segmentX = tileOffset + startSource * scale;
+                segments.push({
+                    x: segmentX,
+                    y: groundY,
+                    width: segmentWidth,
+                    height: collisionHeight,
+                });
+            }
+        }
+        terrain.collisionSegments = segments;
+
+        const nextFloorOffset = Math.max(20, Math.round(world.height - groundY));
+        floorOffset = nextFloorOffset;
+
+        const changed =
+            Math.abs(scale - previousScale) > 0.001 ||
+            (typeof previousGroundY === "number" && Math.abs(previousGroundY - groundY) > 0.5);
+        return changed;
+    }
+
     function addCoinForPlatform(platform) {
         const coinWidth = getCoinDrawWidth();
         const coinHeight = getCoinDrawHeight();
@@ -635,7 +761,9 @@
             ...(metadata ?? {}),
         };
         platforms.push(platform);
-        addCoinForPlatform(platform);
+        if (!metadata?.skipCoins) {
+            addCoinForPlatform(platform);
+        }
         return platform;
     }
 
@@ -653,128 +781,69 @@
         updateCoinDisplay();
         updateLifeDisplay();
 
-        const groundY = world.height - floorOffset;
-        const levelVerticalOffset = Math.round(world.height * 0.3);
-        const bottomZoneHeight = Math.max(120, Math.round(world.height * 0.3));
-        const bottomZoneTop = Math.max(
-            hero.standHeight * 0.5,
-            world.height - bottomZoneHeight
-        );
-        const maxOffsetFromGround = Math.max(groundY - bottomZoneTop, 60);
-        const minGroundClearance = Math.max(50, Math.round(maxOffsetFromGround * 0.3));
-        const basePlatformY = clamp(
-            groundY - Math.max(minGroundClearance + 40, Math.round(maxOffsetFromGround * 0.55)) + levelVerticalOffset,
-            bottomZoneTop,
-            groundY - minGroundClearance
-        );
-        const singleJumpHeight = Math.pow(Math.abs(hero.jumpVelocity), 2) / (2 * hero.gravity);
-        const hangTimeSingleJump = (Math.abs(hero.jumpVelocity) * 2) / hero.gravity;
-        // Keep vertical steps and horizontal gaps within the hero's reliable double-jump range.
-        const safeMaxVerticalStep = Math.max(
-            Math.round(singleJumpHeight * hero.maxJumps * 0.85),
-            60
-        );
-        const safeMaxHorizontalGap = Math.max(
-            Math.round(hero.speed * hangTimeSingleJump * hero.maxJumps * 0.8),
-            80
-        );
-
         if (!heroSpriteMetrics) {
             applyHeroDimensions(hero.height);
         }
 
-        // Ten predefined platforms alternating between long and short variants.
-        const layoutPlan = [
-            { type: "long", width: 320, verticalOffset: 0 },
-            { type: "short", width: 220, verticalOffset: -60 },
-            { type: "long", width: 360, verticalOffset: 40 },
-            { type: "short", width: 200, verticalOffset: -80 },
-            { type: "long", width: 310, verticalOffset: 20 },
-            { type: "short", width: 210, verticalOffset: -50 },
-            { type: "long", width: 340, verticalOffset: 70 },
-            { type: "short", width: 190, verticalOffset: -30 },
-            { type: "long", width: 300, verticalOffset: 50 },
-            { type: "short", width: 230, verticalOffset: -70 },
-        ];
-        const gapPattern = [150, 140, 160, 150, 165, 150, 140, 155, 150];
+        if (terrain.baseImage) {
+            updateTerrainMetrics();
+        }
+
+        const platformSegments =
+            terrain.collisionSegments.length > 0
+                ? terrain.collisionSegments
+                : [
+                      {
+                          x: 0,
+                          y: world.height - floorOffset,
+                          width: Math.max(viewportWidth * 2, world.width),
+                          height: Math.max(80, terrain.collisionHeight || 120),
+                          skipCoins: true,
+                      },
+                  ];
+
         let firstPlatform = null;
-        let lastPlatform = null;
-
-        for (let index = 0; index < layoutPlan.length; index += 1) {
-            const layout = layoutPlan[index];
-            let platformX = 80;
-            if (lastPlatform) {
-                const patternGap = gapPattern[(index - 1) % gapPattern.length];
-                const gap = clamp(patternGap, 80, safeMaxHorizontalGap);
-                platformX = lastPlatform.x + lastPlatform.width + gap;
-            }
-
-            const desiredY = clamp(
-                basePlatformY + layout.verticalOffset,
-                bottomZoneTop,
-                groundY - minGroundClearance
-            );
-            let platformY = desiredY;
-
-            if (lastPlatform) {
-                const previousY = lastPlatform.y;
-                if (Math.abs(desiredY - previousY) > safeMaxVerticalStep) {
-                    const direction = desiredY > previousY ? 1 : -1;
-                    platformY = clamp(
-                        previousY + direction * safeMaxVerticalStep,
-                        bottomZoneTop,
-                        groundY - minGroundClearance
-                    );
-                }
-            }
-
-            const platform = addPlatform(platformX, platformY, layout.width, 24, {
-                type: layout.type,
+        for (let index = 0; index < platformSegments.length; index += 1) {
+            const segment = platformSegments[index];
+            const platform = addPlatform(segment.x, segment.y, segment.width, segment.height, {
+                type: "terrain",
+                skipCoins: Boolean(segment.skipCoins),
             });
-
             if (!firstPlatform) {
                 firstPlatform = platform;
             }
-
-            lastPlatform = platform;
         }
 
-        if (lastPlatform) {
-            const requiredWorldWidth =
-                lastPlatform.x + lastPlatform.width + Math.max(240, Math.round(viewportWidth * 0.5));
-            world.width = Math.max(world.width, requiredWorldWidth);
-        }
-
-        // Lower all platforms and coins by ~30% of viewport height, clamped to safe range near the ground
-        const levelLowering = Math.round(world.height * 0.3);
-        if (platforms.length > 0) {
-            for (let i = 0; i < platforms.length; i += 1) {
-                const p = platforms[i];
-                // Move down while keeping a minimum clearance from the ground
-                const loweredY = clamp(p.y + levelLowering, bottomZoneTop, groundY - minGroundClearance);
-                p.y = clampPlatformYToBottomRange(loweredY);
-            }
-            // Reposition coins relative to lowered platforms
-            coins.length = 0;
-            for (let i = 0; i < platforms.length; i += 1) {
-                addCoinForPlatform(platforms[i]);
-            }
-        }
-
-        if (!firstPlatform && platforms.length > 0) {
-            firstPlatform = platforms[0];
+        const terrainWidth = terrain.totalWidth || 0;
+        if (terrainWidth > 0) {
+            world.width = Math.max(terrainWidth, viewportWidth);
+        } else if (firstPlatform) {
+            world.width = Math.max(
+                world.width,
+                firstPlatform.x + firstPlatform.width + Math.max(240, Math.round(viewportWidth * 0.5))
+            );
+        } else {
+            world.width = Math.max(world.width, viewportWidth * 2);
         }
 
         hero.height = hero.standHeight;
         applyHeroDimensions(hero.height);
 
         if (firstPlatform) {
-            hero.x = firstPlatform.x + firstPlatform.width / 2 - hero.width / 2;
+            const offset = Math.min(firstPlatform.width * 0.1, 180);
+            hero.x = firstPlatform.x + offset;
             hero.y = firstPlatform.y - hero.height;
             hero.groundY = firstPlatform.y;
             hero.isGrounded = true;
             hero.jumpCount = 0;
             hero.lastSafePlatform = firstPlatform;
+        } else {
+            hero.x = 120;
+            hero.y = world.height - floorOffset - hero.height;
+            hero.groundY = world.height - floorOffset;
+            hero.isGrounded = true;
+            hero.jumpCount = 0;
+            hero.lastSafePlatform = null;
         }
 
         hero.controlLock = 0;
@@ -1079,26 +1148,38 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.setTransform(deviceScale, 0, 0, deviceScale, 0, 0);
 
-        // Background with vertical parallax during jumps
-        const backgroundHeight = viewportHeight + background.parallaxAmplitude * 2;
-        const groundReference = (hero.groundY ?? hero.lastSafePlatform?.y ?? (world.height - floorOffset));
+        // Background with vertical and horizontal parallax
+        const targetGround = terrain.groundY ?? hero.lastSafePlatform?.y ?? (world.height - floorOffset);
+        const groundReference = hero.groundY ?? targetGround;
         const groundY = groundReference - hero.height;
         const jumpOffset = clamp(groundY - hero.y, -background.parallaxAmplitude, background.parallaxAmplitude);
         const parallaxShift = jumpOffset;
         const backgroundY = -background.parallaxAmplitude + parallaxShift;
 
-        if (background.image) {
-            ctx.drawImage(
-                background.image,
-                0,
-                0,
-                background.image.naturalWidth || background.image.width,
-                background.image.naturalHeight || background.image.height,
-                0,
-                backgroundY,
-                viewportWidth,
-                backgroundHeight
-            );
+        if (background.image && background.scaledWidth > 0 && background.scaledHeight > 0) {
+            const sourceWidth = background.image.naturalWidth || background.image.width;
+            const sourceHeight = background.image.naturalHeight || background.image.height;
+            const scaledWidth = background.scaledWidth;
+            const scaledHeight = background.scaledHeight;
+            const parallaxOffsetRaw = camera.x * (background.parallaxFactorX ?? 0.25);
+            let offsetX = ((parallaxOffsetRaw % scaledWidth) + scaledWidth) % scaledWidth;
+            let drawX = -offsetX;
+            if (drawX > 0) {
+                drawX -= scaledWidth;
+            }
+            for (; drawX < viewportWidth + scaledWidth; drawX += scaledWidth) {
+                ctx.drawImage(
+                    background.image,
+                    0,
+                    0,
+                    sourceWidth,
+                    sourceHeight,
+                    drawX,
+                    backgroundY,
+                    scaledWidth,
+                    scaledHeight
+                );
+            }
         } else {
             const gradient = ctx.createLinearGradient(0, 0, 0, viewportHeight);
             gradient.addColorStop(0, "#3c3c3c");
@@ -1110,11 +1191,51 @@
         ctx.save();
         ctx.translate(-camera.x, -camera.y);
 
-        // Platforms
-        ctx.fillStyle = "#5b5b5b";
-        platforms.forEach((platform) => {
-            ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
-        });
+        if (
+            terrain.baseImage &&
+            terrain.tiles.length > 0 &&
+            terrain.drawWidth > 0 &&
+            terrain.drawHeight > 0
+        ) {
+            const baseSourceWidth = terrain.baseImage.naturalWidth || terrain.baseImage.width;
+            const baseSourceHeight = terrain.baseImage.naturalHeight || terrain.baseImage.height;
+            const decorSourceWidth =
+                terrain.decorImage?.naturalWidth || terrain.decorImage?.width || 0;
+            const decorSourceHeight =
+                terrain.decorImage?.naturalHeight || terrain.decorImage?.height || 0;
+            for (let index = 0; index < terrain.tiles.length; index += 1) {
+                const tile = terrain.tiles[index];
+                ctx.drawImage(
+                    terrain.baseImage,
+                    0,
+                    0,
+                    baseSourceWidth,
+                    baseSourceHeight,
+                    tile.x,
+                    tile.y,
+                    terrain.drawWidth,
+                    terrain.drawHeight
+                );
+                if (terrain.decorImage) {
+                    ctx.drawImage(
+                        terrain.decorImage,
+                        0,
+                        0,
+                        decorSourceWidth || baseSourceWidth,
+                        decorSourceHeight || baseSourceHeight,
+                        tile.x,
+                        tile.y,
+                        terrain.drawWidth,
+                        terrain.drawHeight
+                    );
+                }
+            }
+        } else {
+            ctx.fillStyle = "#5b5b5b";
+            platforms.forEach((platform) => {
+                ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
+            });
+        }
 
         // Coins
         coins.forEach((coin) => {
@@ -1405,9 +1526,6 @@
         const displayHeight = Math.max(1, Math.round(bounds.height));
         const nextDpr = window.devicePixelRatio || 1;
 
-        const previousWidth = viewportWidth;
-        const previousHeight = viewportHeight;
-
         viewportWidth = displayWidth;
         viewportHeight = displayHeight;
         deviceScale = nextDpr;
@@ -1418,9 +1536,18 @@
         canvas.width = Math.round(displayWidth * nextDpr);
         canvas.height = Math.round(displayHeight * nextDpr);
 
-        // Do not rescale world/entities; only adjust canvas and camera.
-        world.width = Math.max(world.width, viewportWidth * 3);
+        world.height = viewportHeight;
+        const terrainChanged = updateTerrainMetrics();
+        updateBackgroundMetrics();
+
+        const desiredWorldWidth =
+            terrain.totalWidth > 0 ? terrain.totalWidth : viewportWidth * 3;
+        world.width = Math.max(desiredWorldWidth, viewportWidth * 3);
+
         updateFallThreshold();
+        if (terrainChanged && worldInitialized) {
+            initializeWorldContent(true);
+        }
         updateCamera();
         updateOrientationBlock();
     }

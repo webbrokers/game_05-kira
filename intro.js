@@ -7,7 +7,6 @@
     const poster = document.getElementById("introPoster");
     const callHeroButton = document.getElementById("callHeroButton");
     const audio = window.gameAudio || null;
-    const FULLSCREEN_FLAG_KEY = "game05kira_fullscreen_requested";
 
     const assetDefinitions = [
         { key: "intro", src: "video/intro.mp4", mime: "video/mp4" },
@@ -15,120 +14,7 @@
     ];
 
     const objectUrls = [];
-    let shouldPropagateFullscreen = false;
     let loaderHidden = false;
-    const FULLSCREEN_RETRY_DELAYS = [32, 260, 1000];
-    const FULLSCREEN_EVENTS = ["pointerdown", "touchstart", "keydown"];
-    let fullscreenIntent = false;
-    let fullscreenFallbackCleanup = null;
-    let fullscreenMonitorBound = false;
-
-    function cleanupFullscreenFallback() {
-        if (typeof fullscreenFallbackCleanup !== "function") {
-            return;
-        }
-        fullscreenFallbackCleanup();
-        fullscreenFallbackCleanup = null;
-    }
-
-    function ensureFullscreenMonitor() {
-        if (fullscreenMonitorBound) {
-            return;
-        }
-        const handleChange = () => {
-            if (document.fullscreenElement) {
-                fullscreenIntent = false;
-                cleanupFullscreenFallback();
-            }
-        };
-        document.addEventListener("fullscreenchange", handleChange);
-        document.addEventListener("webkitfullscreenchange", handleChange);
-        fullscreenMonitorBound = true;
-    }
-
-    function attemptFullscreenRequest() {
-        if (!fullscreenIntent || document.fullscreenElement) {
-            return false;
-        }
-        try {
-            const root = document.documentElement;
-            const method =
-                root.requestFullscreen ||
-                root.webkitRequestFullscreen ||
-                root.msRequestFullscreen;
-            if (typeof method !== "function") {
-                return false;
-            }
-            const result = method.call(root);
-            const handleSuccess = () => {
-                fullscreenIntent = false;
-                cleanupFullscreenFallback();
-            };
-            if (result && typeof result.then === "function") {
-                result.then(handleSuccess).catch(() => {});
-            } else {
-                window.setTimeout(() => {
-                    if (document.fullscreenElement) {
-                        handleSuccess();
-                    }
-                }, 120);
-            }
-            return true;
-        } catch (_) {
-            return false;
-        }
-    }
-
-    function ensureFullscreenFallback() {
-        if (!fullscreenIntent || fullscreenFallbackCleanup) {
-            return;
-        }
-
-        const handler = () => {
-            attemptFullscreenRequest();
-        };
-
-        FULLSCREEN_EVENTS.forEach((eventName) => {
-            window.addEventListener(eventName, handler, true);
-        });
-
-        const timeoutIds = FULLSCREEN_RETRY_DELAYS.map((delay) =>
-            window.setTimeout(() => {
-                attemptFullscreenRequest();
-            }, delay),
-        );
-
-        window.addEventListener(
-            "pageshow",
-            () => {
-                attemptFullscreenRequest();
-            },
-            { once: true },
-        );
-        window.addEventListener(
-            "load",
-            () => {
-                attemptFullscreenRequest();
-            },
-            { once: true },
-        );
-
-        fullscreenFallbackCleanup = () => {
-            timeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
-            FULLSCREEN_EVENTS.forEach((eventName) => {
-                window.removeEventListener(eventName, handler, true);
-            });
-        };
-    }
-
-    function triggerFullscreenRequest() {
-        if (!fullscreenIntent || document.fullscreenElement) {
-            return;
-        }
-        ensureFullscreenMonitor();
-        ensureFullscreenFallback();
-        attemptFullscreenRequest();
-    }
 
     function stopMenuMusic() {
         try {
@@ -167,57 +53,6 @@
         if (playResult && typeof playResult.catch === "function") {
             playResult.catch(() => {});
         }
-    }
-
-    function detectFullscreenIntent() {
-        let shouldRequest = false;
-        let propagate = false;
-
-        try {
-            if (window.sessionStorage?.getItem(FULLSCREEN_FLAG_KEY) === "1") {
-                shouldRequest = true;
-                propagate = true;
-                window.sessionStorage.removeItem(FULLSCREEN_FLAG_KEY);
-            }
-        } catch (_) {
-            // Ignore storage errors.
-        }
-
-        try {
-            const currentUrl = new URL(window.location.href);
-            const hasSearchFlag = currentUrl.searchParams.get("fs") === "1";
-            const hasHashFlag =
-                currentUrl.hash === "#fs" || currentUrl.hash === "#fullscreen";
-
-            if (hasSearchFlag || hasHashFlag) {
-                shouldRequest = true;
-                propagate = true;
-                if (hasSearchFlag) {
-                    currentUrl.searchParams.delete("fs");
-                }
-                if (hasHashFlag) {
-                    currentUrl.hash = "";
-                }
-                const sanitizedUrl =
-                    currentUrl.pathname +
-                    (currentUrl.search || "") +
-                    (currentUrl.hash || "");
-                window.history.replaceState(null, "", sanitizedUrl);
-            }
-        } catch (_) {
-            // Ignore URL parsing issues.
-        }
-
-        shouldPropagateFullscreen = propagate || shouldRequest;
-        fullscreenIntent = shouldRequest;
-        return shouldRequest;
-    }
-
-    function requestFullscreenIfNeeded() {
-        if (!detectFullscreenIntent()) {
-            return;
-        }
-        triggerFullscreenRequest();
     }
 
     async function preloadAsset(definition) {
@@ -272,10 +107,6 @@
                 unbind();
                 return;
             }
-            if (!document.fullscreenElement && shouldPropagateFullscreen) {
-                fullscreenIntent = true;
-                triggerFullscreenRequest();
-            }
             safePlay(introVideo);
         };
 
@@ -309,10 +140,6 @@
             introVideo.classList.remove("intro-video--hidden");
             safePlay(introVideo);
             bindIntroPlaybackRetry();
-            if (!document.fullscreenElement && shouldPropagateFullscreen) {
-                fullscreenIntent = true;
-                triggerFullscreenRequest();
-            }
         };
 
         if (introVideo.readyState >= 2) {
@@ -346,10 +173,6 @@
             navigateToPlay();
             return;
         }
-        if (!document.fullscreenElement && shouldPropagateFullscreen) {
-            fullscreenIntent = true;
-            triggerFullscreenRequest();
-        }
         heroVideo.classList.remove("intro-video--hidden");
         safePlay(heroVideo);
     }
@@ -365,15 +188,10 @@
         if (poster) {
             poster.hidden = true;
         }
-        if (!document.fullscreenElement && shouldPropagateFullscreen) {
-            fullscreenIntent = true;
-            triggerFullscreenRequest();
-        }
         startHeroVideo();
     }
 
     function releaseObjectUrls() {
-        cleanupFullscreenFallback();
         objectUrls.forEach((url) => {
             try {
                 URL.revokeObjectURL(url);
@@ -386,32 +204,19 @@
 
     function navigateToPlay() {
         releaseObjectUrls();
-        if (shouldPropagateFullscreen) {
-            try {
-                window.sessionStorage?.setItem(FULLSCREEN_FLAG_KEY, "1");
-            } catch (_) {
-                // Ignore storage issues.
-            }
-        }
 
         try {
             const targetUrl = new URL("play.html", window.location.href);
-            if (shouldPropagateFullscreen) {
-                targetUrl.searchParams.set("fs", "1");
-            }
             window.location.replace(
                 targetUrl.pathname + targetUrl.search + targetUrl.hash,
             );
         } catch (_) {
-            window.location.replace(
-                shouldPropagateFullscreen ? "play.html?fs=1" : "play.html",
-            );
+            window.location.replace("play.html");
         }
     }
 
     async function init() {
         stopMenuMusic();
-        requestFullscreenIfNeeded();
 
         if (introVideo) {
             introVideo.addEventListener("ended", handleIntroEnded, { once: true });

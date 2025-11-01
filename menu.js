@@ -5,7 +5,6 @@
     const coarsePointerMedia =
         typeof window.matchMedia === "function" ? window.matchMedia("(pointer: coarse)") : null;
     const audio = window.gameAudio || null;
-    const FULLSCREEN_FLAG_KEY = "game05kira_fullscreen_requested";
     let orientationBlocked = false;
 
     if (orientationOverlay) {
@@ -75,19 +74,6 @@
         }
     }
 
-    function flagFullscreenIntent() {
-        if (typeof window === "undefined") {
-            return;
-        }
-        try {
-            if (window.sessionStorage) {
-                window.sessionStorage.setItem(FULLSCREEN_FLAG_KEY, "1");
-            }
-        } catch (_) {
-            // Ignore storage errors (e.g., private mode).
-        }
-    }
-
     function enablePlayButton() {
         if (!playButton) {
             return;
@@ -109,23 +95,8 @@
             event.preventDefault();
             audio?.playMenuClick();
 
-            flagFullscreenIntent();
-
-            // Try to enter fullscreen immediately on user gesture (best effort)
-            requestAnyFullscreen();
-
             const targetHref = playButton.dataset.target || "intro.html";
-            let targetUrl = targetHref;
-            try {
-                const url = new URL(targetHref, window.location.href);
-                url.searchParams.set("fs", "1");
-                targetUrl = url.pathname + url.search + url.hash;
-            } catch (_) {
-                // Fallback to hash flag if URL construction fails (e.g., older browsers)
-                targetUrl = `${targetHref}${targetHref.includes("#") ? "" : "#fs"}`;
-            }
-
-            window.location.href = targetUrl;
+            window.location.href = targetHref;
         });
     }
 
@@ -137,7 +108,6 @@
         fullscreenButton.addEventListener("click", (event) => {
             event.preventDefault();
             audio?.playMenuClick();
-            flagFullscreenIntent();
             requestAnyFullscreen();
             attemptLandscapeLock();
             enablePlayButton();

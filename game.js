@@ -15,7 +15,6 @@
     const coarsePointerMedia =
         typeof window.matchMedia === "function" ? window.matchMedia("(pointer: coarse)") : null;
     const audio = window.gameAudio || null;
-    const FULLSCREEN_FLAG_KEY = "game05kira_fullscreen_requested";
     let jumpBoostTimeoutId = null;
 
     if (gameOverOverlay) {
@@ -41,7 +40,7 @@
     const TERRAIN_BLUEPRINT = {
         sourceWidth: 12592,
         sourceHeight: 2400,
-        top: 1505,
+        top: 2290,
         bottom: 2400,
         segments: [
             [0, 4497],
@@ -417,137 +416,6 @@
             attemptLandscapeLock();
             updateOrientationBlock();
         }
-    }
-
-    function consumeFullscreenIntent() {
-        if (typeof window === "undefined") {
-            return false;
-        }
-
-        let shouldRequest = false;
-
-        try {
-            if (window.sessionStorage?.getItem(FULLSCREEN_FLAG_KEY) === "1") {
-                shouldRequest = true;
-                window.sessionStorage.removeItem(FULLSCREEN_FLAG_KEY);
-            }
-        } catch (_) {
-            // Ignore storage access errors.
-        }
-
-        try {
-            const currentUrl = new URL(window.location.href);
-            const hasSearchFlag = currentUrl.searchParams.get("fs") === "1";
-            const hasHashFlag =
-                currentUrl.hash === "#fs" || currentUrl.hash === "#fullscreen";
-
-            if (!shouldRequest && (hasSearchFlag || hasHashFlag)) {
-                shouldRequest = true;
-            }
-
-            if (hasSearchFlag) {
-                currentUrl.searchParams.delete("fs");
-            }
-            if (hasHashFlag) {
-                currentUrl.hash = "";
-            }
-
-            if (hasSearchFlag || hasHashFlag) {
-                const sanitizedUrl =
-                    currentUrl.pathname +
-                    (currentUrl.search || "") +
-                    (currentUrl.hash || "");
-                try {
-                    window.history.replaceState(null, "", sanitizedUrl);
-                } catch (_) {
-                    // Fallback: ignore if history API not available.
-                }
-            }
-        } catch (_) {
-            // Ignore URL parsing issues (e.g., older browsers).
-        }
-
-        return shouldRequest;
-    }
-
-    function enterFullscreenIfRequested() {
-        if (typeof window === "undefined") {
-            return;
-        }
-
-        if (!consumeFullscreenIntent()) {
-            return;
-        }
-
-        const attempt = () => {
-            const result = requestStageFullscreen();
-            if (result) {
-                handleFullscreenResult(result);
-                return true;
-            }
-            return false;
-        };
-
-        const scheduleRetries = () => {
-            const retry = () => {
-                if (!document.fullscreenElement) {
-                    attempt();
-                }
-            };
-
-            setTimeout(retry, 32);
-            setTimeout(retry, 260);
-            setTimeout(retry, 1000);
-
-            window.addEventListener(
-                "pageshow",
-                () => {
-                    if (!document.fullscreenElement) {
-                        attempt();
-                    }
-                },
-                { once: true }
-            );
-
-            attemptLandscapeLock();
-            updateOrientationBlock();
-        };
-
-        if (!attempt()) {
-            scheduleRetries();
-            if (document.readyState !== "complete") {
-                window.addEventListener(
-                    "load",
-                    () => {
-                        if (!document.fullscreenElement) {
-                            attempt();
-                        }
-                    },
-                    { once: true }
-                );
-            }
-        }
-    }
-
-    function bindFullscreenFallback() {
-        const tryFs = () => {
-            if (!document.fullscreenElement) {
-                const result = requestStageFullscreen();
-                if (result) {
-                    handleFullscreenResult(result);
-                } else {
-                    attemptLandscapeLock();
-                    updateOrientationBlock();
-                }
-            }
-            window.removeEventListener("pointerdown", tryFs, true);
-            window.removeEventListener("keydown", tryFs, true);
-            window.removeEventListener("touchstart", tryFs, true);
-        };
-
-        window.addEventListener("pointerdown", tryFs, true);
-        window.addEventListener("keydown", tryFs, true);
-        window.addEventListener("touchstart", tryFs, true);
     }
 
     function computeSpriteMetrics(frames) {
@@ -1573,7 +1441,5 @@
     bindGameMenus();
     bindOrientationListeners();
     bindResizeObserver();
-    enterFullscreenIfRequested();
-    bindFullscreenFallback();
     init();
 })();

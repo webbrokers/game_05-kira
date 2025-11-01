@@ -9,24 +9,19 @@
             return `${DEFAULT_PAGE}.html`;
         }
         let page = DEFAULT_PAGE;
-        let fsFlag = "";
 
         try {
             const url = new URL(window.location.href);
             const requestedPage = (url.searchParams.get("page") || "").toLowerCase();
-            const fsParam = url.searchParams.get("fs");
 
             if (requestedPage && ALLOWED_PAGES.has(requestedPage)) {
                 page = requestedPage;
-            }
-            if (fsParam === "1") {
-                fsFlag = "?fs=1";
             }
         } catch (_) {
             // Ignore malformed URL scenarios.
         }
 
-        return `${page}.html${fsFlag}`;
+        return `${page}.html`;
     }
 
     function updateViewportHeight() {

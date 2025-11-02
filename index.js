@@ -273,12 +273,18 @@
 
         if (introVideo) {
             introVideo.addEventListener("ended", () => {
+                if (!introStarted) {
+                    return;
+                }
                 introVideo.classList.add("intro-video--hidden");
                 if (introPoster) {
                     introPoster.hidden = false;
                 }
             });
             introVideo.addEventListener("error", () => {
+                if (!introStarted) {
+                    return;
+                }
                 if (!heroStarted) {
                     startHeroVideo();
                 }
@@ -287,9 +293,17 @@
 
         if (heroVideo) {
             heroVideo.addEventListener("ended", () => {
+                if (!heroStarted) {
+                    return;
+                }
+                releasePreloadedVideos();
                 navigation.go("play");
             });
             heroVideo.addEventListener("error", () => {
+                if (!heroStarted) {
+                    return;
+                }
+                releasePreloadedVideos();
                 navigation.go("play");
             });
         }

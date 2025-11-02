@@ -102,6 +102,9 @@
     const HERO_STAND_HEIGHT = 222 * HERO_SCALE;
     const HERO_CROUCH_HEIGHT = 150 * HERO_SCALE;
     const HERO_BASE_WIDTH = 93 * HERO_SCALE;
+    const PLATFORM_VERTICAL_SHIFT = HERO_STAND_HEIGHT * 0.5;
+
+    floorOffset += PLATFORM_VERTICAL_SHIFT;
 
     const world = {
         width: canvas.width * 3,
@@ -629,7 +632,8 @@
         const scaledWidth = sourceWidth * scale;
         const scaledHeight = sourceHeight * scale;
         const drawY = world.height - scaledHeight;
-        const groundY = drawY + topSource * scale;
+        const rawGroundY = drawY + topSource * scale;
+        const groundY = Math.max(0, rawGroundY - PLATFORM_VERTICAL_SHIFT);
         const collisionHeight = Math.max((bottomSource - topSource) * scale * 0.35, 80);
 
         terrain.scale = scale;

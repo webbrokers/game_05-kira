@@ -97,7 +97,9 @@ body.shell-page {
 }
 
 body.play-page,
-body.play-page * {
+body.play-page *,
+.play-page,
+.play-page * {
     user-select: none;
     -webkit-user-select: none;
     -ms-user-select: none;

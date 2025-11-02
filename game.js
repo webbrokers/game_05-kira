@@ -6,6 +6,8 @@
     const lifeDisplayElement = document.getElementById("lifeDisplay");
     const gameOverOverlay = document.getElementById("gameOverOverlay");
     const orientationOverlay = document.getElementById("orientationOverlay");
+    const rescueOverlay = document.getElementById("rescueOverlay");
+    const rescueConfirmButton = document.getElementById("rescueConfirmButton");
     const restartButton = document.querySelector('[data-action="restart-game"]');
     const exitToMenuButton = document.querySelector('[data-action="exit-to-menu"]');
     const menuButton = document.querySelector('[data-action="open-menu"]');
@@ -22,6 +24,10 @@
     }
     if (orientationOverlay) {
         orientationOverlay.setAttribute("aria-hidden", "true");
+    }
+    if (rescueOverlay) {
+        rescueOverlay.hidden = true;
+        rescueOverlay.setAttribute("aria-hidden", "true");
     }
     if (prestartOverlay) {
         prestartOverlay.hidden = false;
@@ -103,6 +109,8 @@
     const HERO_CROUCH_HEIGHT = 150 * HERO_SCALE;
     const HERO_BASE_WIDTH = 93 * HERO_SCALE;
     const PLATFORM_VERTICAL_SHIFT = HERO_STAND_HEIGHT * 0.5;
+    const RESCUE_SCALE = 0.6;
+    const RESCUE_EDGE_PADDING = 160;
 
     floorOffset += PLATFORM_VERTICAL_SHIFT;
 
@@ -124,6 +132,14 @@
     const coins = [];
     const worldSeed = 1337;
     const MAX_LIVES = 3;
+    const rescueTarget = {
+        image: null,
+        width: 0,
+        height: 0,
+        x: 0,
+        y: 0,
+        reached: false,
+    };
     const gameState = {
         coinsCollected: 0,
         lives: MAX_LIVES,
@@ -131,6 +147,7 @@
         isGameOver: false,
         orientationBlocked: false,
         awaitingStart: true,
+        rescueComplete: false,
     };
     let worldInitialized = false;
 
@@ -174,6 +191,8 @@
             prestartOverlay.setAttribute("aria-hidden", String(!active));
         }
         if (active) {
+            setRescueComplete(false);
+            rescueTarget.reached = false;
             resetInputState();
             hero.vx = 0;
             hero.vy = 0;
@@ -231,17 +250,23 @@
             loadImage("img/new_bg/bg_01.png"),
             loadImage("img/new_bg/platform-01.png"),
             loadImage("img/new_bg/platform-02.png"),
+            loadImage("img/pig_in_kletka.png"),
         ])
-            .then(([heroImages, backgroundImage, platformBaseImage, platformDecorImage]) => {
+            .then(([heroImages, backgroundImage, platformBaseImage, platformDecorImage, rescueImage]) => {
                 background.image = backgroundImage;
                 terrain.baseImage = platformBaseImage;
                 terrain.decorImage = platformDecorImage;
                 updateBackgroundMetrics();
                 updateTerrainMetrics();
+                rescueTarget.image = rescueImage;
+                updateRescueMetrics(rescueImage);
+                rescueTarget.reached = false;
+                setRescueComplete(false);
                 heroFrames.push(...heroImages);
                 heroSpriteMetrics = computeSpriteMetrics(heroFrames);
                 applyHeroDimensions(hero.height);
                 initializeWorldContent(true);
+                positionRescueTarget();
                 updateCoinDisplay();
                 updateLifeDisplay();
                 updateFallThreshold();
@@ -371,6 +396,67 @@
         background.scaleTarget = 1;
         background.scaleHoldTimer = 0;
         background.scaleMultiplier = 1;
+    }
+
+    function updateRescueMetrics(image) {
+        if (!image) {
+            return;
+        }
+        const naturalWidth = image.naturalWidth || image.width;
+        const naturalHeight = image.naturalHeight || image.height;
+        if (!naturalWidth || !naturalHeight) {
+            return;
+        }
+        rescueTarget.width = naturalWidth * RESCUE_SCALE;
+        rescueTarget.height = naturalHeight * RESCUE_SCALE;
+    }
+
+    function positionRescueTarget() {
+        if (!rescueTarget.image || !rescueTarget.width || !rescueTarget.height) {
+            return;
+        }
+        const edgePadding = Math.max(RESCUE_EDGE_PADDING, viewportWidth * 0.2);
+        const groundReference =
+            platforms[platforms.length - 1]?.y ??
+            hero.lastSafePlatform?.y ??
+            terrain.groundY ??
+            (world.height - floorOffset);
+        const groundY = groundReference;
+        rescueTarget.x = Math.max(120, world.width - rescueTarget.width - edgePadding);
+        rescueTarget.y = Math.max(0, groundY - rescueTarget.height);
+    }
+
+    function setRescueComplete(active) {
+        gameState.rescueComplete = active;
+        if (rescueOverlay) {
+            rescueOverlay.hidden = !active;
+            rescueOverlay.setAttribute("aria-hidden", String(!active));
+        }
+        if (active) {
+            rescueConfirmButton?.focus?.();
+        }
+    }
+
+    function handleRescueReached() {
+        if (rescueTarget.reached || gameState.rescueComplete) {
+            return;
+        }
+        rescueTarget.reached = true;
+        resetInputState();
+        hero.vx = 0;
+        hero.vy = 0;
+        const stopX = Math.max(0, rescueTarget.x - hero.width * 0.25);
+        if (hero.x > stopX) {
+            hero.x = stopX;
+        }
+        const groundY = rescueTarget.y + rescueTarget.height;
+        hero.y = Math.min(hero.y, groundY - hero.height);
+        hero.groundY = groundY;
+        hero.controlLock = Infinity;
+        hero.isGrounded = true;
+        hero.jumpCount = 0;
+        setRescueComplete(true);
+        audio?.setRunningLoop(false);
     }
 
     function triggerJumpVisualBoost(isDoubleJump = false) {
@@ -733,6 +819,8 @@
         gameState.lives = MAX_LIVES;
         clearJumpVisualBoost();
         setGameOverState(false);
+        setRescueComplete(false);
+        rescueTarget.reached = false;
         updateCoinDisplay();
         updateLifeDisplay();
 
@@ -780,6 +868,7 @@
         } else {
             world.width = Math.max(world.width, viewportWidth * 2);
         }
+        positionRescueTarget();
 
         hero.height = hero.standHeight;
         applyHeroDimensions(hero.height);
@@ -832,7 +921,7 @@
     }
 
     function handleHeroLifeLoss() {
-        if (hero.invulnerabilityTimer > 0 || gameState.isGameOver) {
+        if (hero.invulnerabilityTimer > 0 || gameState.isGameOver || gameState.rescueComplete) {
             return;
         }
 
@@ -848,7 +937,7 @@
     }
 
     function handleHeroFall() {
-        if (hero.invulnerabilityTimer > 0 || gameState.isGameOver) {
+        if (hero.invulnerabilityTimer > 0 || gameState.isGameOver || gameState.rescueComplete) {
             return;
         }
         const heroBottom = hero.y + hero.height;
@@ -873,7 +962,10 @@
 
     function update(delta) {
         const inputBlocked =
-            gameState.orientationBlocked || gameState.isGameOver || gameState.awaitingStart;
+            gameState.orientationBlocked ||
+            gameState.isGameOver ||
+            gameState.awaitingStart ||
+            gameState.rescueComplete;
         if (!inputBlocked) {
             handleInput();
         } else {
@@ -891,7 +983,12 @@
             hero.blinkTimer = 0;
         }
 
-        if (gameState.orientationBlocked || gameState.isGameOver || gameState.awaitingStart) {
+        if (
+            gameState.orientationBlocked ||
+            gameState.isGameOver ||
+            gameState.awaitingStart ||
+            gameState.rescueComplete
+        ) {
             hero.vx = 0;
             hero.vy = 0;
             updateCamera();
@@ -959,6 +1056,29 @@
 
         hero.x = nextX;
         hero.y = nextY;
+
+        if (!rescueTarget.reached && rescueTarget.image) {
+            const heroRight = hero.x + hero.width;
+            const heroBottom = hero.y + hero.height;
+            const targetRight = rescueTarget.x + rescueTarget.width;
+            const targetBottom = rescueTarget.y + rescueTarget.height;
+            const overlaps =
+                hero.x < targetRight &&
+                heroRight > rescueTarget.x &&
+                hero.y < targetBottom &&
+                heroBottom > rescueTarget.y;
+            if (overlaps) {
+                handleRescueReached();
+            }
+        }
+
+        if (gameState.rescueComplete) {
+            updateCamera();
+            updateAnimation(0);
+            updateBackgroundState(delta);
+            inputState.jumpRequested = false;
+            return;
+        }
 
         if (!wasGrounded && hero.isGrounded) {
             audio?.playLand();
@@ -1260,6 +1380,16 @@
             ctx.restore();
         });
 
+        if (rescueTarget.image && !rescueTarget.reached && rescueTarget.width && rescueTarget.height) {
+            ctx.drawImage(
+                rescueTarget.image,
+                rescueTarget.x,
+                rescueTarget.y,
+                rescueTarget.width,
+                rescueTarget.height
+            );
+        }
+
         const frame = heroFrames[hero.animFrame];
         const heroVisible = hero.invulnerabilityTimer <= 0 || Math.floor((hero.blinkTimer ?? 0) / 0.1) % 2 === 0;
 
@@ -1293,7 +1423,7 @@
     }
 
     function setInputState(action, isActive) {
-        if (gameState.isGameOver || gameState.orientationBlocked) {
+        if (gameState.isGameOver || gameState.orientationBlocked || gameState.rescueComplete) {
             if (!isActive) {
                 switch (action) {
                     case "move-left":
@@ -1473,6 +1603,18 @@
         }
     }
 
+    function bindRescueOverlay() {
+        if (!rescueConfirmButton) {
+            return;
+        }
+        rescueConfirmButton.addEventListener("click", () => {
+            audio?.playMenuClick();
+            setRescueComplete(false);
+            rescueTarget.reached = false;
+            navigateToMenu();
+        });
+    }
+
     function bindOrientationListeners() {
         if (coarsePointerMedia) {
             const handlePointerChange = () => updateOrientationBlock();
@@ -1520,6 +1662,7 @@
         const desiredWorldWidth =
             terrain.totalWidth > 0 ? terrain.totalWidth : viewportWidth * 3;
         world.width = Math.max(desiredWorldWidth, viewportWidth * 3);
+        positionRescueTarget();
 
         updateFallThreshold();
         if (terrainChanged && worldInitialized) {
@@ -1570,6 +1713,7 @@
     bindKeyboard();
     bindMenuButton();
     bindGameMenus();
+    bindRescueOverlay();
     bindOrientationListeners();
     bindResizeObserver();
     init();

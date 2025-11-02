@@ -65,7 +65,7 @@ body.app-body {
     display: none;
 }
 
-.play-page.view {
+.play-page.view:not([hidden]) {
     display: block;
 }
 

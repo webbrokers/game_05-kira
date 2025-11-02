@@ -1,7 +1,9 @@
 (() => {
+    const MENU_MUSIC_VOLUME = 0.35;
+    const MENU_MUSIC_SOFT_VOLUME = 0.24;
     const SOUND_DEFINITIONS = {
-        menuMusic: { src: "audio/new/menu_music_01.mp3", type: "music", loop: true, volume: 0.35 },
-        menuMusicSoft: { src: "audio/new/menu_music_01.mp3", type: "music", loop: true, volume: 0.245 },
+        menuMusic: { src: "audio/new/menu_music_01.mp3", type: "music", loop: true, volume: MENU_MUSIC_VOLUME },
+        coin: { src: "audio/new/bring_donate.mp3", type: "sfx", volume: 0.7 },
     };
 
     const sounds = new Map();
@@ -88,6 +90,33 @@
         });
     }
 
+    function ensureMenuMusic(targetVolume) {
+        const audio = sounds.get("menuMusic");
+        if (!audio) {
+            return;
+        }
+        stopGroup("music", "menuMusic");
+        const volume =
+            typeof targetVolume === "number" ? targetVolume : MENU_MUSIC_VOLUME;
+        audio.volume = volume;
+        if (audio.paused) {
+            if (
+                Number.isFinite(audio.duration) &&
+                audio.currentTime >= audio.duration - 0.05
+            ) {
+                audio.currentTime = 0;
+            }
+            safePlay(audio);
+        }
+        return audio;
+    }
+
+    function startMenuMusic(targetVolume) {
+        schedulePlayback(() => {
+            ensureMenuMusic(targetVolume);
+        });
+    }
+
     function playMusic(key) {
         const audio = sounds.get(key);
         if (!audio) {
@@ -159,8 +188,8 @@
     window.gameAudio = {
         ensureUnlock: ensureUnlockListeners,
         unlock,
-        playMenuMusic: () => playMusic("menuMusic"),
-        playMenuMusicSoft: () => playMusic("menuMusicSoft"),
+        playMenuMusic: () => startMenuMusic(MENU_MUSIC_VOLUME),
+        playMenuMusicSoft: () => startMenuMusic(MENU_MUSIC_SOFT_VOLUME),
         playGameMusic: () => playMusic("gameMusic"),
         stopMusic,
         setRunningLoop: (active) => setLoopState("runLoop", active),

@@ -16,9 +16,9 @@
     const objectUrls = [];
     let loaderHidden = false;
 
-    function stopMenuMusic() {
+    function softenMenuMusic() {
         try {
-            audio?.stopMusic("menuMusic");
+            audio?.playMenuMusicSoft();
         } catch (_) {
             // Ignore audio errors.
         }
@@ -216,7 +216,7 @@
     }
 
     async function init() {
-        stopMenuMusic();
+        softenMenuMusic();
 
         if (introVideo) {
             introVideo.addEventListener("ended", handleIntroEnded, { once: true });

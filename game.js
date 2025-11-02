@@ -1422,7 +1422,7 @@
     }
 
     function navigateToMenu() {
-        audio?.stopMusic();
+        audio?.playMenuMusic();
         audio?.setRunningLoop(false);
         resetInputState();
         setGameOverState(false);
@@ -1548,7 +1548,7 @@
             setPrestartState(true);
             resetInputState();
             initializeWorldContent(true);
-            audio?.stopMusic();
+            audio?.playMenuMusicSoft();
             audio?.setRunningLoop(false);
             window.requestAnimationFrame(() => {
                 handleResize();
@@ -1556,7 +1556,7 @@
             });
         },
         onHide() {
-            audio?.stopMusic();
+            audio?.playMenuMusic();
             audio?.setRunningLoop(false);
             resetInputState();
             setGameOverState(false);

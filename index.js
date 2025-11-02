@@ -380,7 +380,7 @@
                 }
                 event.preventDefault();
                 window.gameAudio?.playMenuClick();
-                window.gameAudio?.stopMusic("menuMusic");
+                window.gameAudio?.playMenuMusicSoft();
                 navigation.go("intro");
             });
         }
@@ -409,7 +409,7 @@
             }
             window.gameAudio?.playMenuMusic();
         } else {
-            window.gameAudio?.stopMusic("menuMusic");
+            window.gameAudio?.playMenuMusicSoft();
         }
 
         if (name === "intro") {
